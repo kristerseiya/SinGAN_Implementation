@@ -1,6 +1,9 @@
 from PIL import Image
+import torch
+from torchvision.transforms import ToTensor
+import torch.nn.functional as F
 
-def loadImg(path):
+def loadPILImage(path):
     img = Image.open(path)
     return img
 
@@ -16,10 +19,10 @@ def createScaledImgs(img,scale,min_len):
 
     return scaled_imgs[::-1]
 
-def preprocess(imgs,transform_img,device):
+def loadToTensor(imgs,transform_img,device):
     transformed_imgs = []
     for img in imgs:
-        tensor = transform_img(img)
+        tensor = transform_img(ToTensor(img))
         tensor = tensor.unsqueeze(0)
         tensor = tensor.to(device)
         transformed_imgs.append(tensor)
@@ -33,3 +36,22 @@ def showTensorImg(tensor):
   img[img>1] = 1
   img[img<0] = 0
   plt.imshow(img)
+
+def disableGrad(net):
+    for p in net.parameters():
+        p.requires_grad = False
+    return
+
+def enableGrad(net):
+    for p in net.parameters():
+        p.requires_grad = True
+    return
+    
+def warp(x,flow):
+    B,C,H,W = x.size()
+    grid_y, grid_x = torch.meshgrid(torch.range(-1,1,2/(H-1)),torch.range(-1,1,2/(W-1)))
+    identity = torch.stack([grid_x, grid_y],0)
+    identity = identity.unsqueeze(0)
+    relative_flow = flow + identity
+    warped = F.grid_sample(x, relative_flow.permute(0,2,3,1),align_corners=True)
+    return warped
