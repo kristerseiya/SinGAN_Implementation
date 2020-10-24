@@ -21,8 +21,9 @@ def createScaledImgs(img,scale,min_len):
 
 def loadToTensor(imgs,transform_img,device):
     transformed_imgs = []
+    tsfm = transforms.Compose([transforms.ToTensor()])
     for img in imgs:
-        tensor = transform_img(ToTensor(img))
+        tensor = transform_img(tsfm(img))
         tensor = tensor.unsqueeze(0)
         tensor = tensor.to(device)
         transformed_imgs.append(tensor)
@@ -46,7 +47,7 @@ def enableGrad(net):
     for p in net.parameters():
         p.requires_grad = True
     return
-    
+
 def warp(x,flow):
     B,C,H,W = x.size()
     grid_y, grid_x = torch.meshgrid(torch.range(-1,1,2/(H-1)),torch.range(-1,1,2/(W-1)))

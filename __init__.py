@@ -1,1 +1,1 @@
-__all__ = ["functions", "SinGAN"]
+__all__ = ["functions", "SinGAN","TecoGAN"]

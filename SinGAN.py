@@ -2,7 +2,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from functions import *
 
 class ConvBatchNormLeakyBlock(nn.Module):
     def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(0,0)):
@@ -21,14 +20,14 @@ class SinGenerator(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
         num_conv = len(channel_config) - 1
-        self.convlist = ModuleList()
+        self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],padding=(5,5)))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=(num_conv,num_conv)))
         for i in range(1, num_conv - 1):
             self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1]))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],(3,3),1))
 
     def forward(self,z,lr):
         x = z + lr
@@ -40,14 +39,14 @@ class SinCritic(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
         num_conv = len(channel_config) - 1
-        self.convlist = ModuleList()
+        self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],padding=(5,5)))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=(num_conv,num_conv)))
         for i in range(1, num_conv - 1):
             self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1]))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],(3,3),1))
 
     def forward(self,x):
         for l in self.convlist:
@@ -55,10 +54,13 @@ class SinCritic(nn.Module):
         return x
 
 class SinGeneratorChain():
-    def __init__(self, fixed_z, init_z_std=0.1, imgsize_list=[], netG_list=[], z_std_list=[]):
+    def __init__(self, fixed_z, imgsize_list=[], netG_list=[], z_std_list=[]):
+        
+        if len(imgsize_list)!=len(netG_list) or len(imgsize_list) != len(z_std_list):
+            raise Exception("all list must have the same length")
+
         self.num_scales = len(netG_list)
         self.generators = netG_list
-        self.init_z_std = init_z_std
         self.z_std_list = z_std_list
         self.z0 = fixed_z
         self.imgsizes = imgsize_list
@@ -70,19 +72,19 @@ class SinGeneratorChain():
         self.num_scales = self.num_scales + 1
         return
 
-    def reconstruct(self):
+    def reconstruct(self,scale=self.num_scales):
         if self.generators == []:
             return
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0)
           rec = self.generators[0](self.z0,zeros)
-          for i in range(1,self.num_scales):
+          for i in range(1,scale):
               rec = F.interpolate(rec,self.imgsizes[i])
               zeros = torch.zeros_like(rec)
               rec = self.generators[i](zeros,rec)
         return rec
 
-    def sample(self,num_sample=1):
+    def sample(self,num_sample=1,scale=self.num_scales):
         if self.generators == []:
             return
         with torch.no_grad():
@@ -90,16 +92,27 @@ class SinGeneratorChain():
           zeros = torch.cat(num_sample*[zeros])
           z = self.z_std_list[0] * torch.randn_like(zeros)
           sample = self.generators[0](z,zeros)
-          for i in range(1,self.num_scales):
+          for i in range(1,scale):
               sample = F.interpolate(sample,self.imgsizes[i])
               z = self.z_std_list[i] * torch.randn_like(sample)
               sample = self.generators[i](z,sample)
         return sample
 
+    def inject(self,x,insert=2,scale=self.num_scales):
+        if (insert < 2) or (insert > self.num_scales):
+            raise ValueError("insert argument must be 1 to %d" % self.num_scales-1)
+        else:
+            for i in range(insert-1,scale):
+                x = F.interpolate(x,self.imgsizes[i])
+                z = self.z_std_list[i] * torch.randn_like(x)
+                x = self.generators[i](z,x)
+            return x
+
+
 def GradientPenaltyLoss(netD,real,fake,gp_scale):
     alpha = torch.rand(1,1).item()
-    alpha = torch.full_like(batch,alpha)
-    interpolates = real * batch + (1-alpha) * fake
+    alpha = torch.full_like(real,alpha)
+    interpolates = alpha * real + (1-alpha) * fake
     interpolates = torch.autograd.Variable(interpolates,requires_grad=True)
     Dout_interpolates = netD(interpolates)
     gradients = torch.autograd.grad(outputs=Dout_interpolates, inputs=interpolates,
@@ -144,21 +157,20 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
 
     for epoch in range(1,num_epoch+1):
 
-        for
-        # generate image
-        if (first):
-            z = z_std * torch.randn_like(batch_zeros)
-            Gout = netG(z,batch_zeros)
-        else:
-            # z = z_std * torch.randn_like(batch_zeros)
-            z = z_std * torch.randn_like(batch_zeros)
-            #z = torch.cat(3*[z],dim=1)
-            base = netG_chain.sample(batch_size)
-            base = F.interpolate(base,imgsize)
-            Gout = netG(z,base)
-
         for i in range(netD_iter):
             netD_optim.zero_grad()
+
+            # generate image
+            if (first):
+                z = z_std * torch.randn_like(batch_zeros)
+                Gout = netG(z,batch_zeros)
+            else:
+                # z = z_std * torch.randn_like(batch_zeros)
+                z = z_std * torch.randn_like(batch_zeros)
+                #z = torch.cat(3*[z],dim=1)
+                base = netG_chain.sample(batch_size)
+                base = F.interpolate(base,imgsize)
+                Gout = netG(z,base)
 
             # train critic
             Dout_real = netD(img)
@@ -171,8 +183,9 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
             D_grad_penalty.backward()
             D_loss = D_loss_real.item() + D_loss_fake.item() + D_grad_penalty.item()
             netD_optim.step()
-            netD_lrscheduler.step()
             netD_loss.append(D_loss)
+
+        netD_lrscheduler.step()
 
         # for p in netD.parameters():  # reset requires_grad
         #     p.requires_grad = False
@@ -202,9 +215,9 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
             # G_loss.backward()
             G_loss = adv_loss.item() + rec_loss.item()
             netG_optim.step()
-            netG_lrscheduler.step()
             netG_loss.append(G_loss)
 
+        netG_lrscheduler.step()
         # for p in netD.parameters():  # reset requires_grad
         #     p.requires_grad = True
         enableGrad(netD)
