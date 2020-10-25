@@ -85,7 +85,7 @@ class SinGAN():
           zeros = torch.zeros_like(self.z0[0])
           rec = self.generators[0](self.z0[0],zeros)
           for i in range(1,scale):
-              rec = F.interpolate(rec,self.imgsizes[i])
+              rec = F.interpolate(rec,self.imgsize[i])
               rec = self.generators[i](self.z0[i],rec)
         return rec
 
@@ -97,11 +97,11 @@ class SinGAN():
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           zeros = torch.cat(num_sample*[zeros])
-          z = self.z_std_list[0] * torch.randn_like(zeros)
+          z = self.z_std[0] * torch.randn_like(zeros)
           sample = self.generators[0](z,zeros)
           for i in range(1,scale):
-              sample = F.interpolate(sample,self.imgsizes[i])
-              z = self.z_std_list[i] * torch.randn_like(sample)
+              sample = F.interpolate(sample,self.imgsize[i])
+              z = self.z_std[i] * torch.randn_like(sample)
               sample = self.generators[i](z,sample)
         return sample
 
