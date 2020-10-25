@@ -47,7 +47,7 @@ def convertImages2Tensors(imgs,device,transform=None):
 
 def showTensorImage(tensor):
     img = tensor.detach().cpu().numpy()
-    if img.dim() == 4 && img.size(0) == 1:
+    if img.dim() == 4 and img.size(0) == 1:
       img = img.squeeze(0)
     img = img.transpose([1,2,0])
     img = (img + 1) / 2
