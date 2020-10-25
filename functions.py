@@ -8,15 +8,15 @@ def loadImage(path):
     img = Image.open(path)
     return img
 
-def createScaledImgs(img,scale,min_len,max_len):
+def createScaledImages(img,scale,min_len,max_len):
     scaled_imgs = []
     width, height = img.size
     if width <= height:
-        new_width = min_len
-        new_height = min_len / width * height
+        new_width = (int)(min_len)
+        new_height = (int)(min_len / width * height)
     else:
-        new_height = min_len
-        new_width = min_len / height * width
+        new_height = (int)(min_len)
+        new_width = (int)(min_len / height * width)
     while (new_height <= max_len and new_width <= max_len):
         new_img = img.resize((new_width,new_height))
         scaled_imgs.append(new_img)
