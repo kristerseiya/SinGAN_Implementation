@@ -1,6 +1,7 @@
 from PIL import Image
 import torch
 from torchvision import transforms
+from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
@@ -45,24 +46,24 @@ def convertImages2Tensors(imgs,device,transform=None):
     return transformed_imgs
 
 def showTensorImg(tensor):
-  img = tensor.detach().cpu().numpy()
-  if len(img.size()) == 4:
+    img = tensor.detach().cpu().numpy()
+    if img.dim() == 4 && img.size(0) == 1:
       img = img.squeeze(0)
-  img = img.transpose([1,2,0])
-  img = (img + 1) / 2
-  img[img>1] = 1
-  img[img<0] = 0
-  plt.imshow(img)
+    img = img.transpose([1,2,0])
+    img = (img + 1) / 2
+    img[img>1] = 1
+    img[img<0] = 0
+    plt.imshow(img)
 
 def xavier_uniform_weight_init(layer):
-  if type(layer) == nn.Conv2d:
-    torch.nn.init.xavier_uniform_(layer.weight)
-  return
+    if type(layer) == nn.Conv2d:
+        torch.nn.init.xavier_uniform_(layer.weight)
+    return
 
 def xavier_normal_weight_init(layer):
-  if type(layer) == nn.Conv2d:
-    torch.nn.init.xavier_normal_(layer.weight)
-  return
+    if type(layer) == nn.Conv2d:
+        torch.nn.init.xavier_normal_(layer.weight)
+    return
 
 def disableGrad(net):
     for p in net.parameters():
