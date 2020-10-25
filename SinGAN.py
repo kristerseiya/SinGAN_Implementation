@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from .functions import *
 
 class ConvBatchNormLeakyBlock(nn.Module):
-    def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(0,0)):
+    def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=0):
         super().__init__()
         self.conv = nn.Conv2d(input_channel,output_channel,kernel,stride,padding=padding,bias=False)
         self.bn = nn.BatchNorm2d(output_channel)
@@ -24,11 +24,11 @@ class Generator(nn.Module):
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=(num_conv,num_conv)))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=num_conv))
         for i in range(1, num_conv - 1):
             self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],(3,3),1))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],3,1))
 
     def forward(self,z,lr):
         x = z + lr
@@ -43,11 +43,11 @@ class Critic(nn.Module):
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=(num_conv,num_conv)))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=num_conv))
         for i in range(1, num_conv - 1):
             self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],(3,3),1))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],3,1))
 
     def forward(self,x):
         for l in self.convlist:
@@ -55,7 +55,16 @@ class Critic(nn.Module):
         return x
 
 class SinGAN():
-    def __init__(self, netG=[], imgsize=[], z_std=[], fixed_z=[]):
+    def __init__(self, netG=None, imgsize=None, z_std=None, fixed_z=None):
+
+        if netG == None:
+            netG = []
+        if imgsize == None:
+            imgsize = []
+        if z_std == None:
+            z_std = []
+        if fixed_z == None:
+            fixed_z = []
 
         if len(fixed_z) != len(imgsize) or \
            len(fixed_z) != len(netG) or \

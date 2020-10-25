@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 class DownBlock(nn.Module):
-    def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(1,1)):
+    def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=1):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channel,output_channel,kernel,stride,padding=padding)
         self.conv2 = nn.Conv2d(output_channel,output_channel,kernel,stride,padding=padding)
@@ -18,7 +18,7 @@ class DownBlock(nn.Module):
         return x
 
 class UpBlock(nn.Module):
-    def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(1,1)):
+    def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=1):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channel,output_channel,kernel,stride,padding=padding)
         self.conv2 = nn.Conv2d(output_channel,output_channel,kernel,stride,padding=padding)
@@ -60,7 +60,7 @@ class FNet(nn.Module):
         return x
 
 class ResidualBlock(nn.Module):
-    def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(1,1)):
+    def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=1):
         super().__init__()
         self.conv1 = nn.Conv2d(input_channel,output_channel,kernel,stride,padding=padding)
         self.conv2 = nn.Conv2d(output_channel,output_channel,kernel,stride,padding=padding)
