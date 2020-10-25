@@ -55,41 +55,43 @@ class Critic(nn.Module):
         return x
 
 class SinGAN():
-    def __init__(self, fixed_z, imgsize_list=[], netG_list=[], z_std_list=[], zero=True):
+    def __init__(self, netG=[], imgsize=[], z_std=[], fixed_z=[]):
 
-        if len(imgsize_list)!=len(netG_list) or len(imgsize_list) != len(z_std_list):
+        if len(fixed_z) != len(imgsize) or \
+           len(fixed_z) != len(netG) or \
+           len(fixed_z) != len(z_std):
             raise Exception("all list must have the same length")
 
-        self.num_scales = len(netG_list)
-        self.generators = netG_list
-        self.z_std_list = z_std_list
+        self.num_scales = len(netG)
+        self.generators = netG
+        self.z_std = z_std
         self.z0 = fixed_z
-        self.imgsizes = imgsize_list
+        self.imgsize = imgsize
 
-    def append(self, netG, imgsize, z_std):
+    def append(self, netG, imgsize, z_std, fixed_z):
         self.generators.append(netG)
-        self.imgsizes.append(imgsize)
-        self.z_std_list.append(z_std)
+        self.imgsize.append(imgsize)
+        self.z_std.append(z_std)
+        self.z0.append(fixed_z)
         self.num_scales = self.num_scales + 1
         return
 
     def reconstruct(self,scale=None):
         if self.generators == []:
-            return
+            return None
         if scale==None:
             scale=self.num_scales
         with torch.no_grad():
-          zeros = torch.zeros_like(self.z0)
-          rec = self.generators[0](self.z0,zeros)
+          zeros = torch.zeros_like(self.z0[0])
+          rec = self.generators[0](self.z0[0],zeros)
           for i in range(1,scale):
               rec = F.interpolate(rec,self.imgsizes[i])
-              zeros = torch.zeros_like(rec)
-              rec = self.generators[i](zeros,rec)
+              rec = self.generators[i](self.z0[i],rec)
         return rec
 
     def sample(self,num_sample=1,scale=None):
         if self.generators == []:
-            return self.z0
+            return None
         if scale==None:
             scale=self.num_scales
         with torch.no_grad():
@@ -107,8 +109,10 @@ class SinGAN():
         if scale==None:
             scale=self.num_scales
         if (insert < 2) or (insert > self.num_scales):
-            raise ValueError("insert argument must be 1 to %d" % self.num_scales-1)
+            raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
         else:
+            if self.generators == []:
+                return None
             for i in range(insert-1,scale):
                 x = F.interpolate(x,self.imgsizes[i])
                 z = self.z_std_list[i] * torch.randn_like(x)
@@ -122,29 +126,29 @@ def GradientPenaltyLoss(netD,real,fake,gp_scale):
     interpolates = alpha * real + (1-alpha) * fake
     interpolates = torch.autograd.Variable(interpolates,requires_grad=True)
     Dout_interpolates = netD(interpolates)
-    gradients = torch.autograd.grad(outputs=Dout_interpolates, inputs=interpolates,
-                                  grad_outputs=torch.ones_like(Dout_interpolates),
+    gradients = torch.autograd.grad(outputs=Dout_interpolates, inputs=interpolates, \
+                                  grad_outputs=torch.ones_like(Dout_interpolates), \
                                   create_graph=True,retain_graph=True,only_inputs=True)[0]
     D_grad_penalty = ((gradients.norm(2,dim=1)-1)**2).mean() * gp_scale
 
     return D_grad_penalty
 
-def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
-                        netD,netD_optim,netD_lrscheduler,
-                        netG_chain,num_epoch,
-                        freq=0,batch_size=1,
-                        mse_scale=10,gp_scale=0.1,z_std_scale=0.1,
-                        netG_iter=3,netD_iter=3):
+def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
+                        netD,netD_optim,netD_lrscheduler, \
+                        netG_chain,num_epoch, \
+                        use_zero=True,batch_size=1, \
+                        mse_scale=10,gp_scale=0.1,z_std_scale=0.1, \
+                        netG_iter=3,netD_iter=3,freq=0):
 
     batch = torch.cat(batch_size*[img])
     imgsize = (img.size(-2),img.size(-1))
 
     if (netG_chain.num_scales == 0):
         first = True
-        fixed_z = netG_chain.z0
-        zeros = torch.zeros_like(netG_chain.z0)
+        zeros = torch.zeros_like(img)
         batch_zeros = torch.cat(batch_size*[zeros])
         z_std = z_std_scale
+        fixed_z = z_std * torch.randn_like(img)
     else:
         first = False
         zeros = torch.zeros_like(img)
@@ -152,6 +156,10 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
         prev_rec = netG_chain.reconstruct()
         prev_rec = F.interpolate(prev_rec,imgsize)
         z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
+        if use_zero:
+            fixed_z = zeros
+        else:
+            fixed_z = z_std * torch.randn_like(img)
 
     netG_loss = []
     netD_loss = []
@@ -208,11 +216,9 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
             if (first):
               rec = netG(fixed_z,zeros)
             else:
-              rec = netG(zeros,prev_rec)
+              rec = netG(fixed_z,prev_rec)
             rec_loss = F.mse_loss(rec,img) * mse_scale
             rec_loss.backward()
-            # G_loss = - Cout_fake.mean() + rec_loss
-            # G_loss.backward()
             G_loss = adv_loss.item() + rec_loss.item()
             netG_optim.step()
             netG_loss.append(G_loss)
@@ -239,7 +245,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
                   base = netG_chain.sample()
                   base = F.interpolate(base,imgsize)
                   sample = netG(z,base)
-                  rec = netG(zeros,prev_rec)
+                  rec = netG(fixed_z,prev_rec)
 
             plt.figure(figsize=(15,15))
             plt.subplot(1,2,1)
@@ -251,4 +257,4 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
             plt.show()
             netG.train()
 
-    return z_std, (netG_loss, netD_loss)
+    return z_std, fixed_z, (netG_loss, netD_loss)
