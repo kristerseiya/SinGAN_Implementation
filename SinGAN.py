@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from .functions import *
 
 class ConvBatchNormLeakyBlock(nn.Module):
     def __init__(self,input_channel,output_channel,kernel=(3,3),stride=1,padding=(0,0)):
@@ -55,7 +56,7 @@ class SinCritic(nn.Module):
 
 class SinGeneratorChain():
     def __init__(self, fixed_z, imgsize_list=[], netG_list=[], z_std_list=[]):
-        
+
         if len(imgsize_list)!=len(netG_list) or len(imgsize_list) != len(z_std_list):
             raise Exception("all list must have the same length")
 
@@ -72,9 +73,11 @@ class SinGeneratorChain():
         self.num_scales = self.num_scales + 1
         return
 
-    def reconstruct(self,scale=self.num_scales):
+    def reconstruct(self,scale=None):
         if self.generators == []:
             return
+        if scale==None:
+            scale=self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0)
           rec = self.generators[0](self.z0,zeros)
@@ -84,9 +87,11 @@ class SinGeneratorChain():
               rec = self.generators[i](zeros,rec)
         return rec
 
-    def sample(self,num_sample=1,scale=self.num_scales):
+    def sample(self,num_sample=1,scale=None):
         if self.generators == []:
-            return
+            return self.z0
+        if scale==None:
+            scale=self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0)
           zeros = torch.cat(num_sample*[zeros])
@@ -98,7 +103,9 @@ class SinGeneratorChain():
               sample = self.generators[i](z,sample)
         return sample
 
-    def inject(self,x,insert=2,scale=self.num_scales):
+    def inject(self,x,insert=2,scale=None):
+        if scale==None:
+            scale=self.num_scales
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 1 to %d" % self.num_scales-1)
         else:

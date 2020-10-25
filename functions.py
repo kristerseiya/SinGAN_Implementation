@@ -2,6 +2,7 @@ from PIL import Image
 import torch
 from torchvision.transforms import ToTensor
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 def loadPILImage(path):
     img = Image.open(path)
@@ -21,9 +22,8 @@ def createScaledImgs(img,scale,min_len):
 
 def loadToTensor(imgs,transform_img,device):
     transformed_imgs = []
-    tsfm = transforms.Compose([transforms.ToTensor()])
     for img in imgs:
-        tensor = transform_img(tsfm(img))
+        tensor = transform_img(ToTensor()(img))
         tensor = tensor.unsqueeze(0)
         tensor = tensor.to(device)
         transformed_imgs.append(tensor)
