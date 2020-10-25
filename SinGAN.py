@@ -95,7 +95,7 @@ class SinGAN():
         if scale==None:
             scale=self.num_scales
         with torch.no_grad():
-          zeros = torch.zeros_like(self.z0)
+          zeros = torch.zeros_like(self.z0[0])
           zeros = torch.cat(num_sample*[zeros])
           z = self.z_std_list[0] * torch.randn_like(zeros)
           sample = self.generators[0](z,zeros)
