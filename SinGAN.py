@@ -249,7 +249,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
 
             plt.figure(figsize=(15,15))
             plt.subplot(1,2,1)
-            showTensorImg(sample)
+            showTensorImage(sample)
             plt.title("Random Sample")
             plt.subplot(1,2,2)
             showTensorImg(rec)
