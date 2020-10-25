@@ -148,6 +148,8 @@ class FrameDiscriminator(nn.Module):
 # adversarial loss
 # discriminator loss
 
+def WarpLoss(target,flow_seq)
+
 def PingPongLoss(gen_out_seq):
     criterion = nn.MSELoss()
     mid = len(gen_out_seq) // 2
@@ -157,3 +159,25 @@ def PingPongLoss(gen_out_seq):
     for out1, out2 in zip(forward,backward):
         loss += criterion(out1,out2)
     return loss
+
+class RecurrentGenerator(nn.Module):
+    def __init__(self):
+        self.gen = SinGenerator([6,32,32,32,32,3])
+        self.fnet = FNet(3)
+
+    def forward(self,x):
+        NUM_FRAME = x.size(0)
+        gen_out_seq = torch.tensor(0)
+        flow_seq = torch.tensor(0)
+        if NUM_FRAME > 0:
+            input = torch.cat([x[0],torch.zeros_like(x[0])],1)
+            gen_out = self.gen(input)
+            gen_out_seq = torch.cat([gen_out_seq,gen_out],0)
+        for i in range(1,NUM_FRAME):
+            input = torch.cat([x[i-1],x[i]],1)
+            flow = self.fnet(input)
+            flow_seq = torch.cat([flow_seq,flow],0)
+            warped = warp(gen_out,flow)
+            input = torch.cat([x[i],warped],1)
+            gen_out = self.gen(input)
+        return gen_out_seq, flow_seq

@@ -17,7 +17,7 @@ class ConvBatchNormLeakyBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
-class SinGenerator(nn.Module):
+class Generator(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
         num_conv = len(channel_config) - 1
@@ -36,7 +36,7 @@ class SinGenerator(nn.Module):
             x = l(x)
         return x + lr
 
-class SinCritic(nn.Module):
+class Critic(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
         num_conv = len(channel_config) - 1
@@ -54,8 +54,8 @@ class SinCritic(nn.Module):
             x = l(x)
         return x
 
-class SinGeneratorChain():
-    def __init__(self, fixed_z, imgsize_list=[], netG_list=[], z_std_list=[]):
+class SinGAN():
+    def __init__(self, fixed_z, imgsize_list=[], netG_list=[], z_std_list=[], zero=True):
 
         if len(imgsize_list)!=len(netG_list) or len(imgsize_list) != len(z_std_list):
             raise Exception("all list must have the same length")
@@ -145,13 +145,10 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
         zeros = torch.zeros_like(netG_chain.z0)
         batch_zeros = torch.cat(batch_size*[zeros])
         z_std = z_std_scale
-        # z_std = img.std().item()
     else:
         first = False
         zeros = torch.zeros_like(img)
         batch_zeros = torch.cat(batch_size*[zeros])
-        # zeros = torch.zeros((1,1,img.size(-2),img.size(-1)),device=cuda)
-        # batch_zeros = torch.cat(batch_size*[zeros])
         prev_rec = netG_chain.reconstruct()
         prev_rec = F.interpolate(prev_rec,imgsize)
         z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
@@ -172,9 +169,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
                 z = z_std * torch.randn_like(batch_zeros)
                 Gout = netG(z,batch_zeros)
             else:
-                # z = z_std * torch.randn_like(batch_zeros)
                 z = z_std * torch.randn_like(batch_zeros)
-                #z = torch.cat(3*[z],dim=1)
                 base = netG_chain.sample(batch_size)
                 base = F.interpolate(base,imgsize)
                 Gout = netG(z,base)
@@ -194,8 +189,6 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
 
         netD_lrscheduler.step()
 
-        # for p in netD.parameters():  # reset requires_grad
-        #     p.requires_grad = False
         disableGrad(netD)
 
         for i in range(netG_iter):
@@ -225,8 +218,6 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
             netG_loss.append(G_loss)
 
         netG_lrscheduler.step()
-        # for p in netD.parameters():  # reset requires_grad
-        #     p.requires_grad = True
         enableGrad(netD)
 
         if (freq != 0) and (epoch % freq == 0):
@@ -244,9 +235,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler,
                   sample = netG(z,zeros)
                   rec = netG(fixed_z,zeros)
               else:
-                  # z = z_std * torch.randn_like(img)
                   z = z_std * torch.randn_like(zeros)
-                  #z = torch.cat(3*[z],dim=1)
                   base = netG_chain.sample()
                   base = F.interpolate(base,imgsize)
                   sample = netG(z,base)

@@ -1,29 +1,44 @@
 from PIL import Image
 import torch
-from torchvision.transforms import ToTensor
+from torchvision import transforms
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-def loadPILImage(path):
+def loadImage(path):
     img = Image.open(path)
     return img
 
-def createScaledImgs(img,scale,min_len):
+def createScaledImgs(img,scale,min_len,max_len):
     scaled_imgs = []
-    scaled_imgs.append(img)
     width, height = img.size
-    width, height = (int)(width * scale), (int)(height * scale)
-    while (height > min_len and width > min_len):
-        new_img = img.resize((width,height))
+    if width <= height:
+        new_width = min_len
+        new_height = (float) min_len / width * height
+    else:
+        new_height = min_len
+        new_width = (float) min_len / height * width
+    while (new_height <= max_len and new_width <= max_len):
+        new_img = img.resize((new_width,new_height))
         scaled_imgs.append(new_img)
-        width, height = (int)(width * scale), (int)(height * scale)
+        new_width, new_height = (int)(new_width / scale), (int)(new_height / scale)
 
-    return scaled_imgs[::-1]
+    return scaled_imgs
 
-def loadToTensor(imgs,transform_img,device):
+def convertImage2Tensor(img,device,transform=None):
+    if transform==None:
+        transform = transforms.Compose([transforms.ToTensor(),
+                                        transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
+    tensor = transform(img)
+    tensor = tensor.to(device)
+    return tensor
+
+def convertImages2Tensors(imgs,device,transform=None):
+    if transform==None:
+        transform = transforms.Compose([transforms.ToTensor(),
+                                        transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
     transformed_imgs = []
     for img in imgs:
-        tensor = transform_img(ToTensor()(img))
+        tensor = transform(img)
         tensor = tensor.unsqueeze(0)
         tensor = tensor.to(device)
         transformed_imgs.append(tensor)
@@ -31,12 +46,23 @@ def loadToTensor(imgs,transform_img,device):
 
 def showTensorImg(tensor):
   img = tensor.detach().cpu().numpy()
-  img = img.squeeze(0)
+  if len(img.size()) == 4:
+      img = img.squeeze(0)
   img = img.transpose([1,2,0])
   img = (img + 1) / 2
   img[img>1] = 1
   img[img<0] = 0
   plt.imshow(img)
+
+def xavier_uniform_weight_init(layer):
+  if type(layer) == nn.Conv2d:
+    torch.nn.init.xavier_uniform_(layer.weight)
+  return
+
+def xavier_normal_weight_init(layer):
+  if type(layer) == nn.Conv2d:
+    torch.nn.init.xavier_normal_(layer.weight)
+  return
 
 def disableGrad(net):
     for p in net.parameters():
