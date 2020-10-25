@@ -45,7 +45,7 @@ def convertImages2Tensors(imgs,device,transform=None):
         transformed_imgs.append(tensor)
     return transformed_imgs
 
-def showTensorImg(tensor):
+def showTensorImage(tensor):
     img = tensor.detach().cpu().numpy()
     if img.dim() == 4 && img.size(0) == 1:
       img = img.squeeze(0)
