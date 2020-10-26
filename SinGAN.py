@@ -145,7 +145,7 @@ class SRSinGAN():
            len(fixed_z) != len(z_std):
             raise Exception("all list must have the same length")
 
-        self.num_scales = len(netG)
+        self.num_scales = len(netG) + 1
         self.lr = img
         self.generators = netG
         self.z_std = z_std
