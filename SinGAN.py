@@ -17,7 +17,7 @@ class ConvBatchNormLeakyBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
-class Generator(nn.Module):
+class AdditiveCICOGenerator(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
         num_conv = len(channel_config) - 1
@@ -128,6 +128,15 @@ class SinGAN():
                 x = self.generators[i](z,x)
             return x
 
+def AdversarialLoss(disc_out):
+    return -disc_out.mean()
+
+def CriticLoss(disc_real,disc_fake):
+    return -disc_real.mean() + disc_fake.mean()
+
+def ReconstructionLoss(rec,target):
+    criterion = nn.MSELoss()
+    return criterion(rec,target)
 
 def GradientPenaltyLoss(netD,real,fake,gp_scale):
     alpha = torch.rand(1,1).item()
@@ -146,7 +155,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                         netD,netD_optim,netD_lrscheduler, \
                         netG_chain,num_epoch, \
                         use_zero=True,batch_size=1, \
-                        mse_scale=10,gp_scale=0.1,z_std_scale=0.1, \
+                        recloss_scale=10,gp_scale=0.1,z_std_scale=0.1, \
                         netG_iter=3,netD_iter=3,freq=0):
 
     batch = torch.cat(batch_size*[img])
@@ -193,14 +202,15 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
 
             # train critic
             Dout_real = netD(img)
-            D_loss_real = - Dout_real.mean()
-            D_loss_real.backward()
+            # D_loss_real = - Dout_real.mean()
+            # D_loss_real.backward()
             Dout_fake = netD(Gout.detach())
-            D_loss_fake = Dout_fake.mean()
-            D_loss_fake.backward()
+            # D_loss_fake = Dout_fake.mean()
+            # D_loss_fake.backward()
+            D_loss = CriticLoss(Dout_real,Dout_fake)
             D_grad_penalty = GradientPenaltyLoss(netD,img,Gout.detach(),gp_scale)
             D_grad_penalty.backward()
-            D_loss = D_loss_real.item() + D_loss_fake.item() + D_grad_penalty.item()
+            D_loss = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
             netD_loss.append(D_loss)
 
@@ -220,13 +230,15 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netG_optim.zero_grad()
             # train generator
             Dout_fake = netD(Gout)
-            adv_loss = - Dout_fake.mean()
+            adv_loss = AdversarialLoss(Dout_fake)
+            # adv_loss = - Dout_fake.mean()
             adv_loss.backward()
             if (first):
               rec = netG(fixed_z,zeros)
             else:
               rec = netG(fixed_z,prev_rec)
-            rec_loss = F.mse_loss(rec,img) * mse_scale
+            # rec_loss = F.mse_loss(rec,img) * mse_scale
+            rec_loss = ReconstructionLoss(rec,img) * recloss_scale
             rec_loss.backward()
             G_loss = adv_loss.item() + rec_loss.item()
             netG_optim.step()
