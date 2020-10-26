@@ -128,6 +128,81 @@ class SinGAN():
                 x = self.generators[i](z,x)
             return x
 
+class SRSinGAN():
+    def __init__(self, img, netG=None, imgsize=None, z_std=None, fixed_z=None):
+
+        if netG == None:
+            netG = []
+        if imgsize == None:
+            imgsize = []
+        if z_std == None:
+            z_std = []
+        if fixed_z == None:
+            fixed_z = []
+
+        if len(fixed_z) != len(imgsize) or \
+           len(fixed_z) != len(netG) or \
+           len(fixed_z) != len(z_std):
+            raise Exception("all list must have the same length")
+
+        self.num_scales = len(netG)
+        self.lr = img
+        self.generators = netG
+        self.z_std = z_std
+        self.z0 = fixed_z
+        self.imgsize = imgsize
+
+    def append(self, netG, imgsize, z_std, fixed_z):
+        self.generators.append(netG)
+        self.imgsize.append(imgsize)
+        self.z_std.append(z_std)
+        self.z0.append(fixed_z)
+        self.num_scales = self.num_scales + 1
+        return
+
+    def reconstruct(self,scale=None):
+        if self.generators == []:
+            return None
+        if scale==None:
+            scale=self.num_scales
+        with torch.no_grad():
+          zeros = torch.zeros_like(self.z0[0])
+          rec = self.generators[0](self.z0[0],self.lr)
+          for i in range(1,scale):
+              rec = F.interpolate(rec,self.imgsize[i])
+              rec = self.generators[i](self.z0[i],rec)
+        return rec
+
+    def sample(self,num_sample=1,scale=None):
+        if self.generators == []:
+            return None
+        if scale==None:
+            scale=self.num_scales
+        with torch.no_grad():
+          zeros = torch.zeros_like(self.z0[0])
+          zeros = torch.cat(num_sample*[zeros])
+          z = self.z_std[0] * torch.randn_like(zeros)
+          sample = self.generators[0](z,self.lr)
+          for i in range(1,scale):
+              sample = F.interpolate(sample,self.imgsize[i])
+              z = self.z_std[i] * torch.randn_like(sample)
+              sample = self.generators[i](z,sample)
+        return sample
+
+    def inject(self,x,insert=2,scale=None):
+        if scale==None:
+            scale=self.num_scales
+        if (insert < 2) or (insert > self.num_scales):
+            raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
+        else:
+            if self.generators == []:
+                return None
+            for i in range(insert-1,scale):
+                x = F.interpolate(x,self.imgsizes[i])
+                z = self.z_std_list[i] * torch.randn_like(x)
+                x = self.generators[i](z,x)
+            return x
+
 def AdversarialLoss(disc_out):
     return -disc_out.mean()
 
