@@ -164,7 +164,7 @@ class SRSinGAN():
         if self.generators == []:
             return self.lr
         if scale == None:
-            scale = self.num_scales
+            scale = self.num_scales - 1
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           rec = self.generators[0](self.z0[0],self.lr)
@@ -177,7 +177,7 @@ class SRSinGAN():
         if self.generators == []:
             return self.lr
         if scale == None:
-            scale = self.num_scales
+            scale = self.num_scales - 1
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           zeros = torch.cat(num_sample*[zeros])
@@ -191,7 +191,7 @@ class SRSinGAN():
 
     def inject(self,x,insert=2,scale=None):
         if scale == None:
-            scale = self.num_scales
+            scale = self.num_scales - 1
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
         else:
