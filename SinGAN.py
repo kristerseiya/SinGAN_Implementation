@@ -123,7 +123,7 @@ class SinGAN():
             if self.generators == []:
                 return None
             for i in range(insert-1,scale):
-                x = F.interpolate(x,self.imgsizes[i])
+                x = F.interpolate(x,self.imgsize[i])
                 z = self.z_std_list[i] * torch.randn_like(x)
                 x = self.generators[i](z,x)
             return x
@@ -198,7 +198,7 @@ class SRSinGAN():
             if self.generators == []:
                 return None
             for i in range(insert-1,scale):
-                x = F.interpolate(x,self.imgsizes[i])
+                x = F.interpolate(x,self.imgsize[i])
                 z = self.z_std_list[i] * torch.randn_like(x)
                 x = self.generators[i](z,x)
             return x
@@ -283,11 +283,12 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # D_loss_fake = Dout_fake.mean()
             # D_loss_fake.backward()
             D_loss = CriticLoss(Dout_real,Dout_fake)
+            D_loss.backward()
             D_grad_penalty = GradientPenaltyLoss(netD,img,Gout.detach(),gp_scale)
             D_grad_penalty.backward()
-            D_loss = D_loss.item() + D_grad_penalty.item()
+            D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
-            netD_loss.append(D_loss)
+            netD_loss.append(D_loss_total)
 
         netD_lrscheduler.step()
 
@@ -315,9 +316,9 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # rec_loss = F.mse_loss(rec,img) * mse_scale
             rec_loss = ReconstructionLoss(rec,img) * recloss_scale
             rec_loss.backward()
-            G_loss = adv_loss.item() + rec_loss.item()
+            G_loss_total = adv_loss.item() + rec_loss.item()
             netG_optim.step()
-            netG_loss.append(G_loss)
+            netG_loss.append(G_loss_total)
 
         netG_lrscheduler.step()
         enableGrad(netD)
