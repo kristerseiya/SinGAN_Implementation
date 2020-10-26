@@ -88,8 +88,8 @@ class SinGAN():
     def reconstruct(self,scale=None):
         if self.generators == []:
             return None
-        if scale==None:
-            scale=self.num_scales
+        if scale == None:
+            scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           rec = self.generators[0](self.z0[0],zeros)
@@ -101,8 +101,8 @@ class SinGAN():
     def sample(self,num_sample=1,scale=None):
         if self.generators == []:
             return None
-        if scale==None:
-            scale=self.num_scales
+        if scale == None:
+            scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           zeros = torch.cat(num_sample*[zeros])
@@ -115,8 +115,8 @@ class SinGAN():
         return sample
 
     def inject(self,x,insert=2,scale=None):
-        if scale==None:
-            scale=self.num_scales
+        if scale == None:
+            scale = self.num_scales
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
         else:
@@ -162,9 +162,9 @@ class SRSinGAN():
 
     def reconstruct(self,scale=None):
         if self.generators == []:
-            return None
-        if scale==None:
-            scale=self.num_scales
+            return self.lr
+        if scale == None:
+            scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           rec = self.generators[0](self.z0[0],self.lr)
@@ -175,9 +175,9 @@ class SRSinGAN():
 
     def sample(self,num_sample=1,scale=None):
         if self.generators == []:
-            return None
-        if scale==None:
-            scale=self.num_scales
+            return self.lr
+        if scale == None:
+            scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
           zeros = torch.cat(num_sample*[zeros])
@@ -190,8 +190,8 @@ class SRSinGAN():
         return sample
 
     def inject(self,x,insert=2,scale=None):
-        if scale==None:
-            scale=self.num_scales
+        if scale == None:
+            scale = self.num_scales
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
         else:
