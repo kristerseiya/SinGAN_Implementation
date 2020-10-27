@@ -17,8 +17,8 @@ def loadGIF(path):
     n_frames = img.n_frames
     imgs = []
     for i in range(n_frames):
-        x = img.seek(i)
-        x = x.convert("RGB")
+        img.seek(i)
+        x = img.convert("RGB")
         imgs.append(x)
     return imgs
 
