@@ -40,7 +40,7 @@ def createScaledImages(img,scale,min_len,max_len,match_min=True):
             if type(img) == list:
                 new_imgs = []
                 for i in img:
-                    new_img = img.resize((new_width,new_height))
+                    new_img = i.resize((new_width,new_height))
                     new_imgs.append(new_img)
                 scaled_imgs.append(new_imgs)
             else:
