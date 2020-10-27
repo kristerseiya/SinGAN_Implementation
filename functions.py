@@ -89,8 +89,8 @@ def convertImages2Tensor(imgs,transform=None, device=None):
             tensor = []
             for i in img:
                 t = transform(i)
-                t_imgs.append(t)
-            tensor = torch.stack(t_imgs,0)
+                tensor.append(t)
+            tensor = torch.stack(tensor,0)
         else:
             tensor = transform(img)
             tensor = tensor.unsqueeze(0)
