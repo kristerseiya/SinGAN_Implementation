@@ -94,10 +94,9 @@ def convertImages2Tensor(imgs,transform=None, device=None):
         else:
             tensor = transform(img)
             tensor = tensor.unsqueeze(0)
+        if device != None:
+            tensor = tensor.to(device)
         transformed_imgs.append(tensor)
-    transformed_imgs = torch.stack(transformed_imgs,0)
-    if device != None:
-        transformed_imgs = transformed_imgs.to(device)
     return transformed_imgs
 
 def showTensorImage(tensor):
