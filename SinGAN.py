@@ -219,8 +219,8 @@ class SRSinGAN():
 def AdversarialLoss(disc_out):
     return -disc_out.mean()
 
-def CriticLoss(disc_real,disc_fake):
-    return -disc_real.mean() + disc_fake.mean()
+def WassersteinDistance(disc_real,disc_fake):
+    return disc_real.mean() - disc_fake.mean()
 
 def ReconstructionLoss(rec,target):
     criterion = nn.MSELoss()
@@ -294,14 +294,14 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # train critic
             Dout_real = netD(batch)
             Dout_fake = netD(Gout.detach())
-            D_loss = CriticLoss(Dout_real,Dout_fake)
+            D_loss = - WassersteinDistance(Dout_real,Dout_fake)
             D_loss.backward()
             D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout.detach()) * gp_scale
             D_grad_penalty.backward()
             D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
             netD_loss.append(D_loss_total)
-            wasserstein_distance.append( Dout_real.item() - Dout_fake.item() )
+            wasserstein_distance.append( - D_loss.item() )
 
 
         netD_lrscheduler.step()
