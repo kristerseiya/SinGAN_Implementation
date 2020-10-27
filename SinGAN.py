@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from .functions import *
 
 class ConvBatchNormLeakyBlock(nn.Module):
-    def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=0):
+    def __init__(self,input_channel,output_channel,kernel_size=3,stride=1,padding=0):
         super().__init__()
-        self.conv = nn.Conv2d(input_channel,output_channel,kernel,stride,padding=padding,bias=False)
+        self.conv = nn.Conv2d(input_channel,output_channel,kernel_size,stride,padding=padding,bias=False)
         self.bn = nn.BatchNorm2d(output_channel)
         self.lrelu = nn.LeakyReLU(0.2)
 
@@ -17,37 +17,45 @@ class ConvBatchNormLeakyBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
-class AdditiveCICOGenerator(nn.Module):
-    def __init__(self,channel_config):
+class AIAOGenerator(nn.Module):
+    def __init__(self,channel_config,kernel_size=3):
         super().__init__()
         num_conv = len(channel_config) - 1
+        num_pad = (kernel_size // 2) * num_conv
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=num_conv))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],kernel_size=kernel_size,padding=num_pad))
         for i in range(1, num_conv - 1):
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],kernel_size=kernel_size))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],3,1))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],kernel_size,1))
 
     def forward(self,z,lr):
-        x = z + lr
+        if z is None and lr is None:
+            raise Exception("Both inputs cannot be Nonetype")
+        if z is None:
+            x = lr
+        if lr is None:
+            x = z
+        # x = z + lr
         for l in self.convlist:
             x = l(x)
         return x + lr
 
 class Critic(nn.Module):
-    def __init__(self,channel_config):
+    def __init__(self,channel_config,kernel_size=3):
         super().__init__()
         num_conv = len(channel_config) - 1
+        num_pad = (kernel_size // 2) * num_conv
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],padding=num_conv))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],kernel_size=kernel_size,padding=num_pad))
         for i in range(1, num_conv - 1):
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1]))
+            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],kernel_size=kernel_size))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],3,1))
+            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],kernel_size,1))
 
     def forward(self,x):
         for l in self.convlist:
@@ -237,19 +245,21 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                         recloss_scale=10,gp_scale=0.1,z_std_scale=0.1, \
                         netG_iter=3,netD_iter=3,freq=0):
 
-    batch = torch.cat(batch_size*[img])
     imgsize = (img.size(-2),img.size(-1))
+    zeros = torch.zeros_like(img)
+    if batch_size != 1:
+        batch = torch.cat(batch_size*[img])
+        batch_zeros = torch.cat(batch_size*[zeros])
+    else:
+        batch = img
+        batch_zeros = zeros
 
     if (netG_chain.num_scales == 0):
         first = True
-        zeros = torch.zeros_like(img)
-        batch_zeros = torch.cat(batch_size*[zeros])
         z_std = z_std_scale
         fixed_z = z_std * torch.randn_like(img)
     else:
         first = False
-        zeros = torch.zeros_like(img)
-        batch_zeros = torch.cat(batch_size*[zeros])
         prev_rec = netG_chain.reconstruct()
         prev_rec = F.interpolate(prev_rec,imgsize)
         z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
@@ -260,6 +270,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
 
     netG_loss = []
     netD_loss = []
+    wasserstein_distance = []
 
     netG.train()
     netD.train()
@@ -289,6 +300,8 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
             netD_loss.append(D_loss_total)
+            wasserstein_distance.append( Dout_real.item() - Dout_fake.item() )
+
 
         netD_lrscheduler.step()
 
@@ -326,8 +339,10 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # show mean
             G_loss_mean = sum(netG_loss[-10:]) / 10
             D_loss_mean = sum(netD_loss[-10:]) / 10
-            print("generator loss: {}".format(G_loss_mean))
-            print("critic loss:    {}".format(D_loss_mean))
+            wasserstein_distance_mean = sum(wasserstein_distance[-10:]) / 10
+            print("   generator loss   : {}".format(G_loss_mean))
+            print("    critic loss     : {}".format(D_loss_mean))
+            print("wasserstein_distance: {}".format(wasserstein_distance_mean))
 
             netG.eval()
             with torch.no_grad():
