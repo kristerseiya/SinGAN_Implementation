@@ -57,13 +57,13 @@ class Critic(nn.Module):
 class SinGAN():
     def __init__(self, netG=None, imgsize=None, z_std=None, fixed_z=None):
 
-        if netG == None:
+        if netG is None:
             netG = []
-        if imgsize == None:
+        if imgsize is None:
             imgsize = []
-        if z_std == None:
+        if z_std is None:
             z_std = []
-        if fixed_z == None:
+        if fixed_z is None:
             fixed_z = []
 
         if len(fixed_z) != len(imgsize) or \
@@ -88,7 +88,7 @@ class SinGAN():
     def reconstruct(self,scale=None):
         if self.generators == []:
             return None
-        if scale == None:
+        if scale is None:
             scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
@@ -101,7 +101,7 @@ class SinGAN():
     def sample(self,num_sample=1,scale=None):
         if self.generators == []:
             return None
-        if scale == None:
+        if scale is None:
             scale = self.num_scales
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
@@ -114,8 +114,10 @@ class SinGAN():
               sample = self.generators[i](z,sample)
         return sample
 
-    def inject(self,x,insert=2,scale=None):
-        if scale == None:
+    def inject(self,x,insert=None,scale=None):
+        if insert is None:
+            isert = self.num_scales
+        if scale is None:
             scale = self.num_scales
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
@@ -124,20 +126,20 @@ class SinGAN():
                 return None
             for i in range(insert-1,scale):
                 x = F.interpolate(x,self.imgsize[i])
-                z = self.z_std_list[i] * torch.randn_like(x)
+                z = self.z_std[i] * torch.randn_like(x)
                 x = self.generators[i](z,x)
             return x
 
 class SRSinGAN():
     def __init__(self, img, netG=None, imgsize=None, z_std=None, fixed_z=None):
 
-        if netG == None:
+        if netG is None:
             netG = []
-        if imgsize == None:
+        if imgsize is None:
             imgsize = []
-        if z_std == None:
+        if z_std is None:
             z_std = []
-        if fixed_z == None:
+        if fixed_z is None:
             fixed_z = []
 
         if len(fixed_z) != len(imgsize) or \
@@ -163,7 +165,7 @@ class SRSinGAN():
     def reconstruct(self,scale=None):
         if self.generators == []:
             return self.lr
-        if scale == None:
+        if scale is None:
             scale = self.num_scales - 1
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
@@ -176,7 +178,7 @@ class SRSinGAN():
     def sample(self,num_sample=1,scale=None):
         if self.generators == []:
             return self.lr
-        if scale == None:
+        if scale is None:
             scale = self.num_scales - 1
         with torch.no_grad():
           zeros = torch.zeros_like(self.z0[0])
@@ -189,8 +191,10 @@ class SRSinGAN():
               sample = self.generators[i](z,sample)
         return sample
 
-    def inject(self,x,insert=2,scale=None):
-        if scale == None:
+    def inject(self,x,insert=None,scale=None):
+        if insert is None:
+            insert = self.num_scales - 1
+        if scale is None:
             scale = self.num_scales - 1
         if (insert < 2) or (insert > self.num_scales):
             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
@@ -199,7 +203,7 @@ class SRSinGAN():
                 return None
             for i in range(insert-1,scale):
                 x = F.interpolate(x,self.imgsize[i])
-                z = self.z_std_list[i] * torch.randn_like(x)
+                z = self.z_std[i] * torch.randn_like(x)
                 x = self.generators[i](z,x)
             return x
 
@@ -213,7 +217,7 @@ def ReconstructionLoss(rec,target):
     criterion = nn.MSELoss()
     return criterion(rec,target)
 
-def GradientPenaltyLoss(netD,real,fake,gp_scale):
+def GradientPenaltyLoss(netD,real,fake):
     alpha = torch.rand(1,1).item()
     alpha = torch.full_like(real,alpha)
     interpolates = alpha * real + (1-alpha) * fake
@@ -222,7 +226,7 @@ def GradientPenaltyLoss(netD,real,fake,gp_scale):
     gradients = torch.autograd.grad(outputs=Dout_interpolates, inputs=interpolates, \
                                   grad_outputs=torch.ones_like(Dout_interpolates), \
                                   create_graph=True,retain_graph=True,only_inputs=True)[0]
-    D_grad_penalty = ((gradients.norm(2,dim=1)-1)**2).mean() * gp_scale
+    D_grad_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
 
     return D_grad_penalty
 
@@ -276,15 +280,11 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                 Gout = netG(z,base)
 
             # train critic
-            Dout_real = netD(img)
-            # D_loss_real = - Dout_real.mean()
-            # D_loss_real.backward()
+            Dout_real = netD(batch)
             Dout_fake = netD(Gout.detach())
-            # D_loss_fake = Dout_fake.mean()
-            # D_loss_fake.backward()
             D_loss = CriticLoss(Dout_real,Dout_fake)
             D_loss.backward()
-            D_grad_penalty = GradientPenaltyLoss(netD,img,Gout.detach(),gp_scale)
+            D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout.detach()) * gp_scale
             D_grad_penalty.backward()
             D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
@@ -307,13 +307,11 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # train generator
             Dout_fake = netD(Gout)
             adv_loss = AdversarialLoss(Dout_fake)
-            # adv_loss = - Dout_fake.mean()
             adv_loss.backward()
             if (first):
               rec = netG(fixed_z,zeros)
             else:
               rec = netG(fixed_z,prev_rec)
-            # rec_loss = F.mse_loss(rec,img) * mse_scale
             rec_loss = ReconstructionLoss(rec,img) * recloss_scale
             rec_loss.backward()
             G_loss_total = adv_loss.item() + rec_loss.item()
@@ -321,6 +319,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netG_loss.append(G_loss_total)
 
         netG_lrscheduler.step()
+
         enableGrad(netD)
 
         if (freq != 0) and (epoch % freq == 0):

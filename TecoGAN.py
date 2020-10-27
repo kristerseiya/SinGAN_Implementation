@@ -145,6 +145,82 @@ from .SinGAN import *
 #         self.convblocks.append(ConvBatchNormLeakyBlock(128,256,kernel=(4,4),stride=2,padding=(1,1)))
 #         self.linear1 = nn.Linear()
 
+def convertVideo2Tensor(video, transform=None, device=None):
+    if transform==None:
+        transform = transforms.Compose([transforms.ToTensor(), \
+                                        transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
+    video_t = []
+    for v in video:
+        v_t = transform(v)
+        v_t = v_t.unsqueeze(0)
+        if device != None:
+            v_t = v_t.to(device)
+        video_t.append(v_t)
+    video_t = torch.stack(video_t,0)
+    return video_t
+
+def loadGIF2Tensor(path,transform=None,device=None):
+    if transform==None:
+        transform = transforms.Compose([transforms.ToTensor(), \
+                                        transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
+    gif = Image.open(path)
+    gif_t = []
+    for i in range(gif.n_frames):
+        gif.seek(i)
+        frame = transform(gif)
+        gif_t.append(frame)
+    gif_t = torch.cat(gif_t,0)
+    return gif_t
+
+def loadGIF2ndarray(path):
+    gif = Image.open(path)
+    frames = []
+    for i in range(gif.n_frames):
+        gif.seek(i)
+        x = gif.convert("RGB")
+        x = np.array(x)
+        frames.append(x)
+    frames = np.stack(frames,0)
+    return frames
+
+def calcOpticalFlowFromSeq(video):
+    n_frames = len(video)
+    H, W = video.shape[-3], video.shape[-2]
+    grid_x, grid_y = np.meshgrid(np.linspace(-1,1,W),np.linspace(-1,1,H))
+    # grid = np.stack([grid_x,grid_y],-1)
+    gray = []
+    for i in range(n_frames):
+        g = cv2.cvtColor(video[i],cv2.COLOR_RGB2GRAY)
+        gray.append(g)
+    gray = np.stack(gray,0)
+    flow = []
+    for i in range(n_frames-1):
+        f = cv2.calcOpticalFlowFarneback(gray[i], gray[i+1], None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        f[:,:,0] = f[:,:,0] / W + grid_x
+        f[:,:,1] = f[:,:,1] / H + grid_y
+        f = np.expand_dims(f,axis=0)
+        flow.append(f)
+    flow = np.stack(flow,0)
+    return flow
+
+def interpolate_frames(frames,imgsize):
+    new_frames = []
+    for f in frames:
+        f = F.interpolate(f,imgsize)
+        new_frames.append(f)
+    new_frames = torch.stack(new_frames,0)
+    return new_frames
+
+def interpolate_flows(flow,imgsize):
+    flow = flow.permute(0,1,4,2,3)
+    new_flow = []
+    for f in flow:
+        f = F.interpolate(f,imgsize)
+        new_flow.append(f)
+    new_flow = torch.stack(new_flow,0)
+    new_flow = new_flow.permute(0,1,3,4,2)
+    return new_flow
+
 class FrameGenerator(nn.Module):
     def __init__(self,channel_config):
         super().__init__()
