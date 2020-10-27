@@ -11,19 +11,61 @@ def loadImage(path):
     img = Image.open(path)
     return img
 
-def createScaledImages(img,scale,min_len,max_len):
+def loadGIF(path):
+    img = Image.open(path)
+    assert(img.is_animated)
+    n_frames = img.n_frames
+    imgs = []
+    for i in range(n_frames):
+        x = img.seek(i)
+        x = x.convert("RGB")
+        imgs.append(x)
+    return imgs
+
+def createScaledImages(img,scale,min_len,max_len,match_min=True):
     scaled_imgs = []
-    width, height = img.size
-    if width <= height:
-        new_width = (int)(min_len)
-        new_height = (int)(min_len / width * height)
+    if type(img) == list:
+        width, height = img[0].size
     else:
-        new_height = (int)(min_len)
-        new_width = (int)(min_len / height * width)
-    while (new_height <= max_len and new_width <= max_len):
-        new_img = img.resize((new_width,new_height))
-        scaled_imgs.append(new_img)
-        new_width, new_height = (int)(new_width / scale), (int)(new_height / scale)
+        width, height = img.size
+
+    if match_min == True:
+        if width <= height:
+            new_width = (int)(min_len)
+            new_height = (int)(min_len / width * height)
+        else:
+            new_height = (int)(min_len)
+            new_width = (int)(min_len / height * width)
+        while new_height <= max_len and new_width <= max_len:
+            if type(img) == list:
+                new_imgs = []
+                for i in img:
+                    new_img = img.resize((new_width,new_height))
+                    new_imgs.append(new_img)
+                scaled_imgs.append(new_imgs)
+            else:
+                new_img = img.resize((new_width,new_height))
+                scaled_imgs.append(new_img)
+            new_width, new_height = (int)(new_width / scale), (int)(new_height / scale)
+    else:
+        if width <= height:
+            new_height = max_len
+            new_width = (int)(max_len / height * width)
+        else:
+            new_width = max_len
+            new_height = (int)(max_len / width * height)
+        while new_width >= min_len and new_height >= min_len:
+            if type(img) == list:
+                new_imgs = []
+                for i in img:
+                    new_img = i.resize((new_width,new_height))
+                    new_imgs.append(new_img)
+                scaled_imgs.append(new_imgs)
+            else:
+                new_img = img.resize((new_width,new_height))
+                scaled_imgs.append(new_img)
+            new_width, new_height = (int)(new_width * scale), (int)(new_height * scale)
+        scaled_imgs = scaled_imgs[::-1]
 
     return scaled_imgs
 
@@ -32,21 +74,30 @@ def convertImage2Tensor(img,transform=None,device=None):
         transform = transforms.Compose([transforms.ToTensor(), \
                                         transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
     tensor = transform(img)
+    tensor = tensor.unsqueeze(0)
     if device != None:
         tensor = tensor.to(device)
     return tensor
 
-def convertImages2Tensors(imgs,transform=None, device=None):
+def convertImages2Tensor(imgs,transform=None, device=None):
     if transform==None:
         transform = transforms.Compose([transforms.ToTensor(), \
                                         transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])])
     transformed_imgs = []
     for img in imgs:
-        tensor = transform(img)
-        tensor = tensor.unsqueeze(0)
-        if device != None:
-            tensor = tensor.to(device)
+        if type(img) == list:
+            tensor = []
+            for i in img:
+                t = transform(i)
+                t_imgs.append(t)
+            tensor = torch.stack(t_imgs,0)
+        else:
+            tensor = transform(img)
+            tensor = tensor.unsqueeze(0)
         transformed_imgs.append(tensor)
+    transformed_imgs = torch.stack(transformed_imgs,0)
+    if device != None:
+        transformed_imgs = transformed_imgs.to(device)
     return transformed_imgs
 
 def showTensorImage(tensor):

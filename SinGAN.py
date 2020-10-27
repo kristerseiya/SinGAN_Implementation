@@ -32,13 +32,14 @@ class AIAOGenerator(nn.Module):
             self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],kernel_size,1))
 
     def forward(self,z,lr):
-        if z is None and lr is None:
-            raise Exception("Both inputs cannot be Nonetype")
-        if z is None:
-            x = lr
-        if lr is None:
-            x = z
-        # x = z + lr
+        # if z is None and lr is None:
+        #     raise Exception("Both inputs cannot be Nonetype")
+        # elif z is None:
+        #     x = lr
+        # elif lr is None:
+        #     x = z
+        # else:
+        x = z + lr
         for l in self.convlist:
             x = l(x)
         return x + lr
