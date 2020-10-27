@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
-import cv2
+import random
 
 def loadImage(path):
     img = Image.open(path)
@@ -102,6 +102,9 @@ def convertImages2Tensor(imgs,transform=None, device=None):
 def showTensorImage(tensor):
     if tensor.dim() == 4 and tensor.size(0) == 1:
         tensor = tensor.squeeze(0)
+    elif tensor.dim() == 4:
+        idx = random.choice(range(tensor.size(0)))
+        tensor = tensor[idx]
     img = tensor.detach().cpu().numpy()
     img = img.transpose([1,2,0])
     img = (img + 1) / 2
