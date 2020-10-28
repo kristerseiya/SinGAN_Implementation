@@ -17,127 +17,175 @@ class ConvBatchNormLeakyBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
-class AIAOGenerator(nn.Module):
-    def __init__(self,channel_config,kernel_size=3):
+class AddSkipGenerator(nn.Module):
+    def __init__(self,channels,kernels):
         super().__init__()
-        num_conv = len(channel_config) - 1
-        num_pad = (kernel_size // 2) * num_conv
+        num_conv = len(channels) - 1
+        # num_pad = (kernel_size // 2) * num_conv
+        num_pad = sum(kernels) - len(kernels)
+
+        self.pad = nn.ZeroPad2d((num_pad//2,num_pad-num_pad//2, \
+                                 num_pad//2,num_pad-num_pad//2))
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],kernel_size=kernel_size,padding=num_pad))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[0],channels[1],kernel_size=kernels[0]))
         for i in range(1, num_conv - 1):
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],kernel_size=kernel_size))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[i],channels[i+1],kernel_size=kernels[i]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],kernel_size,1))
+            self.convlist.append(nn.Conv2d(channels[-2],channels[-1],kernels[-1],1))
 
     def forward(self,z,lr):
-        # if z is None and lr is None:
-        #     raise Exception("Both inputs cannot be Nonetype")
-        # elif z is None:
-        #     x = lr
-        # elif lr is None:
-        #     x = z
-        # else:
         x = z + lr
+        x = self.pad(x)
         for l in self.convlist:
             x = l(x)
         return x + lr
 
+    def disable_grad(self):
+        for p in self.parameters():
+            p.requires_grad = False
+        return
+
+    def enable_grad(self):
+        for p in self.parameters():
+            p.requires_grad = True
+        return
+
 class Critic(nn.Module):
-    def __init__(self,channel_config,kernel_size=3):
+    def __init__(self,channels,kernels,padding=True):
         super().__init__()
-        num_conv = len(channel_config) - 1
-        num_pad = (kernel_size // 2) * num_conv
+        num_conv = len(channels) - 1
+        if padding is True:
+            # num_pad = (kernel_size // 2) * num_conv
+            num_pad = sum(kernels) - len(kernels)
+        else:
+            num_pad = 0
+
+        self.pad = nn.ZeroPad2d((num_pad//2,num_pad-num_pad//2, \
+                                 num_pad//2,num_pad-num_pad//2))
         self.convlist = nn.ModuleList()
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[0],channel_config[1],kernel_size=kernel_size,padding=num_pad))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[0],channels[1],kernel_size=kernels[i],padding=num_pad))
         for i in range(1, num_conv - 1):
-            self.convlist.append(ConvBatchNormLeakyBlock(channel_config[i],channel_config[i+1],kernel_size=kernel_size))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[i],channels[i+1],kernel_size=kernels[i]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channel_config[-2],channel_config[-1],kernel_size,1))
+            self.convlist.append(nn.Conv2d(channels[-2],channels[-1],kernels[-1],1))
 
     def forward(self,x):
+        x = self.pad(x)
         for l in self.convlist:
             x = l(x)
         return x
 
 class SinGAN():
-    def __init__(self, netG=None, imgsize=None, z_std=None, fixed_z=None):
+    def __init__(self, G=None, imgsize=None, z_std=None, Z=None, recimg=None):
 
-        if netG is None:
-            netG = []
+        if G is None:
+            G = []
         if imgsize is None:
             imgsize = []
         if z_std is None:
             z_std = []
-        if fixed_z is None:
-            fixed_z = []
+        if Z is None:
+            Z = []
+        if recimg is None:
+            recimg = []
 
-        if len(fixed_z) != len(imgsize) or \
-           len(fixed_z) != len(netG) or \
-           len(fixed_z) != len(z_std):
-            raise Exception("all list must have the same length")
+        if len(Z) != len(imgsize) or \
+           len(Z) != len(G) or \
+           len(Z) != len(z_std):
+            raise Exception("G, imgsize, z_std, Z must be lists with same length")
 
-        self.num_scales = len(netG)
-        self.generators = netG
+        self.n_scale = len(G)
+        self.G = G
         self.z_std = z_std
-        self.z0 = fixed_z
+        self.Z = Z
         self.imgsize = imgsize
+        self.recimg = recimg
+
+        for i in range(len(recimg),n_scale):
+            if i == 0:
+                zeros = torch.randn_like(Z[0])
+                new_recimg = self.G[0](Z[0],zeros)
+            else:
+                prev = F.interpolate(self.recimg[-1],self.imgsize[i])
+                new_recimg = self.G[i](Z[i],prev)
+            self.recimg.append(new_recimg)
 
     def append(self, netG, imgsize, z_std, fixed_z):
-        self.generators.append(netG)
+        disableGrad(netG)
+        self.G.append(netG)
         self.imgsize.append(imgsize)
         self.z_std.append(z_std)
-        self.z0.append(fixed_z)
-        self.num_scales = self.num_scales + 1
+        self.Z.append(fixed_z.detach())
+
+        if self.n_scale > 0:
+            prev = F.interpolate(self.recimg[-1],imgsize)
+            new_recimg = netG(fixed_z,prev)
+        else:
+            zeros = torch.randn_like(fixed_z)
+            new_recimg = netG(fixed_z,zeros)
+        self.recimg.append(new_recimg.detach())
+
+        self.n_scale = self.n_scale + 1
+
         return
 
-    def reconstruct(self,scale=None):
-        if self.generators == []:
-            return None
-        if scale is None:
-            scale = self.num_scales
-        with torch.no_grad():
-          zeros = torch.zeros_like(self.z0[0])
-          rec = self.generators[0](self.z0[0],zeros)
-          for i in range(1,scale):
-              rec = F.interpolate(rec,self.imgsize[i])
-              rec = self.generators[i](self.z0[i],rec)
-        return rec
+    # def reconstruct_(self,scale=None):
+    #     if self.G == []:
+    #         return None
+    #     if scale is None:
+    #         scale = self.n_scale
+    #     with torch.no_grad():
+    #       zeros = torch.zeros_like(self.Z[0])
+    #       rec = self.G[0](self.Z[0],zeros)
+    #       for i in range(1,scale):
+    #           rec = F.interpolate(rec,self.imgsize[i])
+    #           rec = self.G[i](self.Z[i],rec)
+    #     return rec
 
-    def sample(self,num_sample=1,scale=None):
-        if self.generators == []:
+    def reconstruct(self,scale=None):
+        if scale is None:
+            return self.recimg[-1]
+        else:
+            return self.recimg[self.n_scale-1]
+
+    def sample(self,scale=None,n_sample=1):
+        if self.G == []:
             return None
         if scale is None:
-            scale = self.num_scales
-        with torch.no_grad():
-          zeros = torch.zeros_like(self.z0[0])
-          zeros = torch.cat(num_sample*[zeros])
-          z = self.z_std[0] * torch.randn_like(zeros)
-          sample = self.generators[0](z,zeros)
-          for i in range(1,scale):
-              sample = F.interpolate(sample,self.imgsize[i])
-              z = self.z_std[i] * torch.randn_like(sample)
-              sample = self.generators[i](z,sample)
+            scale = self.n_scale
+        # with torch.no_grad():
+        zeros = torch.zeros_like(self.Z[0])
+        if n_sample != 1:
+            zeros = torch.cat(n_sample*[zeros])
+        z = self.z_std[0] * torch.randn_like(zeros)
+        sample = self.G[0](z,zeros)
+        for i in range(1,scale):
+          sample = F.interpolate(sample,self.imgsize[i])
+          z = self.z_std[i] * torch.randn_like(sample)
+          sample = self.G[i](z,sample)
         return sample
 
-    def inject(self,x,insert=None,scale=None):
+    def inject(self,x,insert=None,scale=None,n_sample=1):
         if insert is None:
-            isert = self.num_scales
+            insert = self.n_scale
         if scale is None:
-            scale = self.num_scales
-        if (insert < 2) or (insert > self.num_scales):
-            raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
-        else:
-            if self.generators == []:
-                return None
-            for i in range(insert-1,scale):
-                x = F.interpolate(x,self.imgsize[i])
-                z = self.z_std[i] * torch.randn_like(x)
-                x = self.generators[i](z,x)
-            return x
+            scale = self.n_scale
+        # if (insert < 2) or (insert > self.num_scales):
+        #     raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
+        # else:
+        if self.G == []:
+            return None
+        if n_sample != 1:
+            x = torch.cat(n_sample*[x],0)
+        for i in range(insert-1,scale):
+            x = F.interpolate(x,self.imgsize[i])
+            z = self.z_std[i] * torch.randn_like(x)
+            x = self.G[i](z,x)
+        return x
 
 class SRSinGAN():
     def __init__(self, img, netG=None, imgsize=None, z_std=None, fixed_z=None):
