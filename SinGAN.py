@@ -325,7 +325,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                 else:
                     tmp = torch.cat(7*[zeros],0)
                     z = z_std * torch.randn_like(tmp)
-                    base = netG_chain.sample(n_sample=8)
+                    base = netG_chain.sample(n_sample=7)
                     base = F.interpolate(base,imgsize)
                     sample = netG(z,base)
                     rec = netG(fixed_z,prev_rec)
