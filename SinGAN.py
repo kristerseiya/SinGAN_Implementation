@@ -19,7 +19,7 @@ class ConvBatchNormLeakyBlock(nn.Module):
 
 class AddSkipGenerator(nn.Module):
     def __init__(self,channels,kernels):
-        assert(len(kernels)==(len(kernels)+1))
+        assert(len(channels)==(len(kernels)+1))
         super().__init__()
         num_conv = len(channels) - 1
         num_pad = sum(kernels) - len(kernels)
@@ -44,7 +44,7 @@ class AddSkipGenerator(nn.Module):
 
 class Critic(nn.Module):
     def __init__(self,channels,kernels,padding=True,output_activation=None):
-        assert(len(kernels)==(len(kernels)+1))
+        assert(len(channels)==(len(kernels)+1))
         super().__init__()
         num_conv = len(channels) - 1
         if padding is True:
