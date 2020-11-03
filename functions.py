@@ -99,13 +99,15 @@ def convertImages2Tensor(imgs,transform=None, device=None):
         transformed_imgs.append(tensor)
     return transformed_imgs
 
-def showTensorImage(tensor):
-    if tensor.dim() == 4 and tensor.size(0) == 1:
-        tensor = tensor.squeeze(0)
-    elif tensor.dim() == 4:
-        idx = random.choice(range(tensor.size(0)))
-        tensor = tensor[idx]
-    img = tensor.detach().cpu().numpy()
+def showTensorImage(tensor,row_n=1):
+    # if tensor.dim() == 4 and tensor.size(0) == 1:
+    #     tensor = tensor.squeeze(0)
+    # elif tensor.dim() == 4:
+    #     idx = random.choice(range(tensor.size(0)))
+    #     tensor = tensor[idx]
+    tensor = tensor.detach().cpu()
+    tensor = torchvision.utils.make_grid(tensor,row_n)
+    img = tensor.numpy()
     img = img.transpose([1,2,0])
     img = (img + 1) / 2
     img[img>1] = 1
@@ -115,11 +117,15 @@ def showTensorImage(tensor):
 def xavier_uniform_weight_init(layer):
     if type(layer) == nn.Conv2d:
         torch.nn.init.xavier_uniform_(layer.weight)
+        if layer.bias is not None:
+            layer.bias.fill.data_(0.1)
     return
 
 def xavier_normal_weight_init(layer):
     if type(layer) == nn.Conv2d:
         torch.nn.init.xavier_normal_(layer.weight)
+        if layer.bias is not None:
+            layer.bias.fill.data_(0.1)
     return
 
 def disableGrad(net):
