@@ -170,7 +170,7 @@ class SinGAN():
 
 
 def saveSinGAN(singan,path):
-    torch.save({'n_scales': singan.n_scales, \
+    torch.save({'n_scale': singan.n_scale, \
                 'models': singan.G, \
                 'image_sizes': singan.imgsize, \
                 'noise_amp': singan.z_std, \
@@ -204,6 +204,7 @@ def GradientPenaltyLoss(netD,real,fake):
     gradients = torch.autograd.grad(outputs=Dout_interpolates, inputs=interpolates, \
                                   grad_outputs=torch.ones_like(Dout_interpolates), \
                                   create_graph=True,retain_graph=True,only_inputs=True)[0]
+
     grad_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
 
     return grad_penalty
@@ -272,9 +273,6 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netD_loss.append(D_loss_total)
             wasserstein_distance.append( - D_loss.item() )
 
-
-        netD_lrscheduler.step()
-
         disableGrad(netD)
 
         for i in range(netG_iter):
@@ -301,9 +299,11 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netG_optim.step()
             netG_loss.append(G_loss_total)
 
+        enableGrad(netD)
+
+        netD_lrscheduler.step()
         netG_lrscheduler.step()
 
-        enableGrad(netD)
 
         if (freq != 0) and (epoch % freq == 0):
             # show mean
@@ -316,27 +316,30 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
 
             netG.eval()
             with torch.no_grad():
-              # display sample from generator
-              if (first):
-                  tmp = torch.cat(8*[zeros],0)
-                  z = z_std * torch.randn_like(tmp)
-                  sample = netG(z,tmp)
-                  rec = netG(fixed_z,zeros)
-              else:
-                  tmp = torch.cat(8*[zeros],0)
-                  z = z_std * torch.randn_like(tmp)
-                  base = netG_chain.sample(n_sample=8)
-                  base = F.interpolate(base,imgsize)
-                  sample = netG(z,base)
-                  rec = netG(fixed_z,prev_rec)
+                # display sample from generator
+                if (first):
+                    tmp = torch.cat(7*[zeros],0)
+                    z = z_std * torch.randn_like(tmp)
+                    sample = netG(z,tmp)
+                    rec = netG(fixed_z,zeros)
+                else:
+                    tmp = torch.cat(7*[zeros],0)
+                    z = z_std * torch.randn_like(tmp)
+                    base = netG_chain.sample(n_sample=8)
+                    base = F.interpolate(base,imgsize)
+                    sample = netG(z,base)
+                    rec = netG(fixed_z,prev_rec)
+
+                sample = torch.cat([sample,rec],0)
 
             plt.figure(figsize=(15,15))
-            plt.subplot(1,2,1)
             showTensorImage(sample,4)
-            plt.title("Random Sample")
-            plt.subplot(1,2,2)
-            showTensorImage(rec)
-            plt.title("Reconstruction")
+            # plt.subplot(1,2,1)
+            # showTensorImage(sample,4)
+            # plt.title("Random Sample")
+            # plt.subplot(1,2,2)
+            # showTensorImage(rec)
+            # plt.title("Reconstruction")
             plt.show()
             netG.train()
 

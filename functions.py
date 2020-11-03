@@ -1,5 +1,6 @@
 from PIL import Image
 import torch
+import torchvision
 from torchvision import transforms
 from torch import nn
 import torch.nn.functional as F
@@ -118,14 +119,14 @@ def xavier_uniform_weight_init(layer):
     if type(layer) == nn.Conv2d:
         torch.nn.init.xavier_uniform_(layer.weight)
         if layer.bias is not None:
-            layer.bias.fill.data_(0.1)
+            layer.bias.data.fill_(0.1)
     return
 
 def xavier_normal_weight_init(layer):
     if type(layer) == nn.Conv2d:
         torch.nn.init.xavier_normal_(layer.weight)
         if layer.bias is not None:
-            layer.bias.fill.data_(0.1)
+            layer.bias.data.fill(0.1)
     return
 
 def disableGrad(net):
