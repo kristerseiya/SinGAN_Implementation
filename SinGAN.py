@@ -191,9 +191,9 @@ def AdversarialLoss(disc_out):
 def WassersteinDistance(disc_real,disc_fake):
     return disc_real.mean() - disc_fake.mean()
 
-def ReconstructionLoss(rec,target):
-    criterion = nn.MSELoss()
-    return criterion(rec,target)
+# def ReconstructionLoss(rec,target):
+#     criterion = nn.MSELoss()
+#     return criterion(rec,target)
 
 def GradientPenaltyLoss(netD,real,fake):
     alpha = torch.rand(1,1).item()
@@ -213,11 +213,14 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                         netD,netD_optim,netD_lrscheduler, \
                         netG_chain,num_epoch, \
                         use_zero=True,batch_size=1, \
-                        recloss_scale=10,gp_scale=0.1,z_std_scale=0.1, \
-                        netG_iter=3,netD_iter=3,freq=0):
+                        recloss='mse',recloss_scale=10,gp_scale=0.1,
+                        z_std_scale=0.1, \
+                        netG_iter=3,netD_iter=3, \
+                        freq=0, figsize=(15,15)):
 
     imgsize = (img.size(-2),img.size(-1))
     zeros = torch.zeros_like(img)
+
     if batch_size != 1:
         batch = torch.cat(batch_size*[img])
         batch_zeros = torch.cat(batch_size*[zeros])
@@ -238,6 +241,11 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             fixed_z = zeros
         else:
             fixed_z = z_std * torch.randn_like(img)
+
+    if recloss=='mse':
+        ReconstructionLoss = nn.MSELoss()
+    elif recloss=='ssim':
+        ReconstructionLoss = SSIM()
 
     netG_loss = []
     netD_loss = []
@@ -332,7 +340,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
 
                 sample = torch.cat([sample,rec],0)
 
-            plt.figure(figsize=(15,15))
+            plt.figure(figsize=figsize)
             showTensorImage(sample,4)
             # plt.subplot(1,2,1)
             # showTensorImage(sample,4)
