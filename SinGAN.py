@@ -248,10 +248,11 @@ def GradientPenaltyLoss(netD,real,fake):
 
     return grad_penalty
 
-def TrainSinGANOneScale(img, mode='wgangp', \
+def TrainSinGANOneScale(img, \
                         netG,netG_optim, \
                         netD,netD_optim, \
                         netG_chain,num_epoch, \
+                        mode='wgangp', \
                         netG_lrscheduler=None, netD_lrscheduler=None, \
                         use_zero=True,batch_size=1, \
                         recloss=None,recloss_scale=10,gp_scale=0.1,clip_range=0.01, \
