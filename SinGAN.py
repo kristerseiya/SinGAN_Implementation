@@ -296,11 +296,10 @@ def TrainSinGANOneScale(img, \
 
     for epoch in range(1,num_epoch+1):
 
+        enableGrad(netD)
+        disableGrad(netG)
+
         for i in range(netD_iter):
-
-            enableGrad(netD)
-            disableGrad(netG)
-
 
             # generate image
             if (first):
@@ -354,14 +353,14 @@ def TrainSinGANOneScale(img, \
         disableGrad(netD)
         enableGrad(netG)
 
-        for i in range(netG_iter):
-            if (i!=0):
-                if (first):
-                  Gout = netG(z,batch_zeros)
-                else:
-                  base = netG_chain.sample(n_sample=batch_size)
-                  base = F.interpolate(base,imgsize)
-                  Gout = netG(z,base)
+        for _ in range(netG_iter):
+            # if (i!=0):
+            if (first):
+              Gout = netG(z,batch_zeros)
+            else:
+              base = netG_chain.sample(n_sample=batch_size)
+              base = F.interpolate(base,imgsize)
+              Gout = netG(z,base)
 
             netG_optim.zero_grad()
             # train generator
