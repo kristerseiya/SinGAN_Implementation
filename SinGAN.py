@@ -249,8 +249,8 @@ def GradientPenaltyLoss(netD,real,fake):
     return grad_penalty
 
 def TrainSinGANOneScale(img, mode='wgangp', \
-                        netG,netG_optim,netG_lrscheduler, \
-                        netD,netD_optim,netD_lrscheduler, \
+                        netG,netG_optim, \
+                        netD,netD_optim, \
                         netG_chain,num_epoch, \
                         netG_lrscheduler=None, netD_lrscheduler=None, \
                         use_zero=True,batch_size=1, \
