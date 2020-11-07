@@ -42,34 +42,73 @@ class AddSkipGenerator(nn.Module):
             x = l(x)
         return x + lr
 
-class Critic(nn.Module):
-    def __init__(self,channels,kernels,padding=True,output_activation=None):
+
+class ConvCritic(nn.Module):
+    def __init__(self,channels,kernels,strides=None,padding=False):
+
         assert(len(channels)==(len(kernels)+1))
-        super().__init__()
+        if strides is None:
+            strides = [1] * len(kernels)
         num_conv = len(channels) - 1
         if padding is True:
             num_pad = sum(kernels) - len(kernels)
         else:
             num_pad = 0
 
+        super().__init__()
+        self.mode = mode
+
         self.pad = nn.ZeroPad2d((num_pad//2,num_pad-num_pad//2, \
                                  num_pad//2,num_pad-num_pad//2))
         self.convlist = nn.ModuleList()
-        self.output_activation = output_activation
 
         if num_conv > 0:
-            self.convlist.append(ConvBatchNormLeakyBlock(channels[0],channels[1],kernel_size=kernels[0]))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[0],channels[1],kernel_size=kernels[0],stride=strides[0]))
         for i in range(1, num_conv - 1):
-            self.convlist.append(ConvBatchNormLeakyBlock(channels[i],channels[i+1],kernel_size=kernels[i]))
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[i],channels[i+1],kernel_size=kernels[i],stride=strides[i]))
         if num_conv > 1:
-            self.convlist.append(nn.Conv2d(channels[-2],channels[-1],kernels[-1],1))
+            self.convlist.append(nn.Conv2d(channels[-2],channels[-1],kernels[-1],strides[-1]))
 
     def forward(self,x):
         x = self.pad(x)
         for l in self.convlist:
             x = l(x)
-        if self.output_activation is not None:
-            x = self.output_activation(x)
+        return x
+
+
+class Discriminator(nn.Module):
+    def __init__(self,input_size,channels,kernels,strides,n_dense_layer=1):
+        assert(len(channels)==(len(kernels)+1))
+        super().__init__()
+        num_conv = len(channels) - 1
+
+        self.convlist = nn.ModuleList()
+
+        if num_conv > 0:
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[0],channels[1],kernel_size=kernels[0],stride=strides[0]))
+        for i in range(1, num_conv):
+            self.convlist.append(ConvBatchNormLeakyBlock(channels[i],channels[i+1],kernel_size=kernels[i],stride=strides[i]))
+
+        x = torch.randn(input_size)
+        for l in self.convlist:
+            x = l(x)
+        self.num = x.nelement()
+        self.linlist = nn.ModuleList()
+        num = self.num
+        for _ in range(n_dense_layer-1):
+          self.linlist.append(nn.Linear(num,num//10))
+          self.linlist.append(nn.LeakyReLU(0.2))
+          num = num // 10
+        self.linlist.append(nn.Linear(num,1))
+        self.sgmd = nn.Sigmoid()
+
+    def forward(self,x):
+        for l in self.convlist:
+            x = l(x)
+        x = x.view(-1,self.num)
+        for l in self.linlist:
+            x = l(x)
+        x = self.sgmd(x)
         return x
 
 class SinGAN():
@@ -185,11 +224,11 @@ def loadSinGAN(path):
                     load['fixed_noise'],load['reconstructed_images'])
     return singan
 
-def AdversarialLoss(disc_out):
-    return -disc_out.mean()
-
-def WassersteinDistance(disc_real,disc_fake):
-    return disc_fake.mean() - disc_real.mean()
+# def AdversarialLoss(disc_out):
+#     return -disc_out.mean()
+#
+# def WassersteinDistance(disc_real,disc_fake):
+#     return disc_fake.mean() - disc_real.mean()
 
 # def ReconstructionLoss(rec,target):
 #     criterion = nn.MSELoss()
@@ -209,11 +248,13 @@ def GradientPenaltyLoss(netD,real,fake):
 
     return grad_penalty
 
-def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
+def TrainSinGANOneScale(img, mode='wgangp', \
+                        netG,netG_optim,netG_lrscheduler, \
                         netD,netD_optim,netD_lrscheduler, \
                         netG_chain,num_epoch, \
+                        netG_lrscheduler=None, netD_lrscheduler=None, \
                         use_zero=True,batch_size=1, \
-                        recloss=None,recloss_scale=10,gp_scale=0.1,
+                        recloss=None,recloss_scale=10,gp_scale=0.1,clip_range=0.01, \
                         z_std_scale=0.1, \
                         netG_iter=3,netD_iter=3, \
                         freq=0, figsize=(15,15)):
@@ -257,7 +298,10 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
     for epoch in range(1,num_epoch+1):
 
         for i in range(netD_iter):
-            netD_optim.zero_grad()
+
+            enableGrad(netD)
+            disableGrad(netG)
+
 
             # generate image
             if (first):
@@ -270,18 +314,46 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                 Gout = netG(z,base)
 
             # train critic
+            netD_optim.zero_grad()
+
             Dout_real = netD(batch)
             Dout_fake = netD(Gout.detach())
-            D_loss = WassersteinDistance(Dout_real,Dout_fake)
-            D_loss.backward()
-            D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
-            D_grad_penalty.backward()
-            D_loss_total = D_loss.item() + D_grad_penalty.item()
+            if mode == 'gan':
+                real_loss = F.binary_cross_entropy(real,torch.ones_like(real))
+                real_loss.backward()
+                fake_loss = F.binary_cross_entropy(fake,torch.zeros_like(fake))
+                fake_loss.backward()
+                D_loss_total = real_loss.item() + fake_loss.item()
+            elif mode == 'wgan':
+                wdistance_loss = Dout_fake.mean() - Dout_real.mean()
+                wdistance_loss.backward()
+                D_loss_total = wdistance_loss.item()
+                wdistance = wdistance_loss.item()
+                netD_loss.append( D_loss_total )
+                wasserstein_distance.append( wdistance )
+            elif mode == 'wgangp':
+                wdistance_loss = Dout_fake.mean() - Dout_real.mean()
+                wdistance_loss.backward()
+                grad_penalty_loss = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
+                grad_penalty_loss.backward()
+                D_loss_total = wdistance_loss.item() + grad_penalty_loss.item()
+                wdistance = wdistance_loss.item()
+                netD_loss.append( D_loss_total )
+                wasserstein_distance.append( wdistance )
+
+            # D_loss.backward()
+            # D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
+            # D_grad_penalty.backward()
+            # D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
-            netD_loss.append(D_loss_total)
-            wasserstein_distance.append( - D_loss.item() )
+
+            if mode == 'wgan':
+                for p in netD.parameters():
+                    p.data.clamp_(-clip_range,clip_range)
+
 
         disableGrad(netD)
+        enableGrad(netG)
 
         for i in range(netG_iter):
             if (i!=0):
@@ -295,8 +367,12 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netG_optim.zero_grad()
             # train generator
             Dout_fake = netD(Gout)
-            adv_loss = AdversarialLoss(Dout_fake)
-            adv_loss.backward()
+            if mode == 'gan':
+                adv_loss = F.binary_cross_entropy(Dout_fake,torch.ones_like(Dout_fake))
+                adv_loss.backward()
+            elif mode == 'wgan' or mode == 'wgangp':
+                adv_loss = - Dout_fake.mean()
+                adv_loss.backward()
             if (first):
               rec = netG(fixed_z,zeros)
             else:
@@ -307,20 +383,22 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             netG_optim.step()
             netG_loss.append(G_loss_total)
 
-        enableGrad(netD)
-
-        netD_lrscheduler.step()
-        netG_lrscheduler.step()
-
+        if netD_lrscheduler is not None:
+            netD_lrscheduler.step()
+        if netG_lrscheduler is not None:
+            netG_lrscheduler.step()
 
         if (freq != 0) and (epoch % freq == 0):
             # show mean
             G_loss_mean = sum(netG_loss[-10:]) / 10
             D_loss_mean = sum(netD_loss[-10:]) / 10
-            wasserstein_distance_mean = sum(wasserstein_distance[-10:]) / 10
             print("   generator loss   : {}".format(G_loss_mean))
-            print("    critic loss     : {}".format(D_loss_mean))
-            print("wasserstein_distance: {}".format(wasserstein_distance_mean))
+            if mode == 'gan':
+                print(" discriminator loss : {}".format(D_loss_mean))
+            elif mode == 'wgan' or mode == 'wgangp':
+                wasserstein_distance_mean = sum(wasserstein_distance[-10:]) / 10
+                print("    critic loss     : {}".format(D_loss_mean))
+                print("wasserstein_distance: {}".format(wasserstein_distance_mean))
 
             netG.eval()
             with torch.no_grad():
