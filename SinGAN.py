@@ -189,7 +189,7 @@ def AdversarialLoss(disc_out):
     return -disc_out.mean()
 
 def WassersteinDistance(disc_real,disc_fake):
-    return disc_real.mean() - disc_fake.mean()
+    return disc_fake.mean() - disc_real.mean()
 
 # def ReconstructionLoss(rec,target):
 #     criterion = nn.MSELoss()
@@ -213,7 +213,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
                         netD,netD_optim,netD_lrscheduler, \
                         netG_chain,num_epoch, \
                         use_zero=True,batch_size=1, \
-                        recloss='mse',recloss_scale=10,gp_scale=0.1,
+                        recloss=None,recloss_scale=10,gp_scale=0.1,
                         z_std_scale=0.1, \
                         netG_iter=3,netD_iter=3, \
                         freq=0, figsize=(15,15)):
@@ -242,10 +242,10 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
         else:
             fixed_z = z_std * torch.randn_like(img)
 
-    if recloss=='mse':
+    if recloss==None:
         ReconstructionLoss = nn.MSELoss()
-    elif recloss=='ssim':
-        ReconstructionLoss = SSIM()
+    else:
+        ReconstructionLoss = recloss
 
     netG_loss = []
     netD_loss = []
@@ -272,7 +272,7 @@ def TrainSinGANOneScale(img,netG,netG_optim,netG_lrscheduler, \
             # train critic
             Dout_real = netD(batch)
             Dout_fake = netD(Gout.detach())
-            D_loss = - WassersteinDistance(Dout_real,Dout_fake)
+            D_loss = WassersteinDistance(Dout_real,Dout_fake)
             D_loss.backward()
             D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
             D_grad_penalty.backward()
