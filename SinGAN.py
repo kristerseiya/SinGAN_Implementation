@@ -97,7 +97,8 @@ class Discriminator(nn.Module):
           self.linlist.append(nn.Linear(num,num//10))
           self.linlist.append(nn.LeakyReLU(0.2))
           num = num // 10
-        self.linlist.append(nn.Linear(num,1))
+        if n_dense_layer > 0:
+            self.linlist.append(nn.Linear(num,1))
         self.sgmd = nn.Sigmoid()
 
     def forward(self,x):
