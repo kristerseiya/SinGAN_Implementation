@@ -318,9 +318,9 @@ def TrainSinGANOneScale(img, \
             Dout_real = netD(batch)
             Dout_fake = netD(Gout.detach())
             if mode == 'gan':
-                real_loss = F.binary_cross_entropy(real,torch.ones_like(real))
+                real_loss = F.binary_cross_entropy(Dout_real,torch.ones_like(Dout_real))
                 real_loss.backward()
-                fake_loss = F.binary_cross_entropy(fake,torch.zeros_like(fake))
+                fake_loss = F.binary_cross_entropy(Dout_fake,torch.zeros_like(Dout_fake))
                 fake_loss.backward()
                 D_loss_total = real_loss.item() + fake_loss.item()
             elif mode == 'wgan':
