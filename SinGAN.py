@@ -56,8 +56,6 @@ class ConvCritic(nn.Module):
             num_pad = 0
 
         super().__init__()
-        self.mode = mode
-
         self.pad = nn.ZeroPad2d((num_pad//2,num_pad-num_pad//2, \
                                  num_pad//2,num_pad-num_pad//2))
         self.convlist = nn.ModuleList()
