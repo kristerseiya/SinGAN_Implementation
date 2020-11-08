@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+from math import ceil, floor
 
 def loadImage(path):
     img = Image.open(path)
@@ -47,7 +48,7 @@ def createScaledImages(img,scale,min_len,max_len,match_min=True):
             else:
                 new_img = img.resize((new_width,new_height))
                 scaled_imgs.append(new_img)
-            new_width, new_height = (int)(new_width / scale), (int)(new_height / scale)
+            new_width, new_height = floor(new_width / scale), floor(new_height / scale)
     else:
         if width <= height:
             new_height = max_len
@@ -65,7 +66,7 @@ def createScaledImages(img,scale,min_len,max_len,match_min=True):
             else:
                 new_img = img.resize((new_width,new_height))
                 scaled_imgs.append(new_img)
-            new_width, new_height = (int)(new_width * scale), (int)(new_height * scale)
+            new_width, new_height = ceil(new_width * scale), ceil(new_height * scale)
         scaled_imgs = scaled_imgs[::-1]
 
     return scaled_imgs

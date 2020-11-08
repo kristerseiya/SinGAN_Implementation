@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from .functions import *
+from math import ceil
 
 class ConvBatchNormLeakyBlock(nn.Module):
     def __init__(self,input_channel,output_channel,kernel_size=3,stride=1,padding=0):
@@ -111,7 +112,7 @@ class Discriminator(nn.Module):
         return x
 
 class SinGAN():
-    def __init__(self, G=None, imgsize=None, z_std=None, Z=None, recimg=None):
+    def __init__(self, scale, G=None, z_std=None, Z=None, recimg=None):
 
         if G is None:
             G = []
@@ -124,8 +125,8 @@ class SinGAN():
         if recimg is None:
             recimg = []
 
-        if len(Z) != len(imgsize) or \
-           len(Z) != len(G) or \
+        # if len(Z) != len(imgsize) or \
+        if len(Z) != len(G) or \
            len(Z) != len(z_std):
             raise Exception("G, imgsize, z_std, Z must be lists with same length")
 
@@ -133,7 +134,8 @@ class SinGAN():
         self.G = G
         self.z_std = z_std
         self.Z = Z
-        self.imgsize = imgsize
+        # self.imgsize = imgsize
+        self.scale = scale
         self.recimg = recimg
 
         with torch.no_grad():
@@ -142,19 +144,19 @@ class SinGAN():
                     zeros = torch.randn_like(Z[0])
                     new_recimg = self.G[0](Z[0],zeros)
                 else:
-                    prev = F.interpolate(self.recimg[-1],self.imgsize[i])
+                    prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
 
-    def append(self, netG, imgsize, z_std, fixed_z):
+    def append(self, netG, z_std, fixed_z):
         self.G.append(netG)
-        self.imgsize.append(imgsize)
+        # self.imgsize.append(imgsize)
         self.z_std.append(z_std)
         self.Z.append(fixed_z.detach())
 
         with torch.no_grad():
             if self.n_scale > 0:
-                prev = F.interpolate(self.recimg[-1],imgsize)
+                prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                 new_recimg = netG(fixed_z,prev)
             else:
                 zeros = torch.zeros_like(fixed_z)
@@ -165,45 +167,50 @@ class SinGAN():
 
         return
 
+    @torch.no_grad()
     def reconstruct(self,scale=None):
         if scale is None:
             return self.recimg[-1]
         else:
             return self.recimg[self.n_scale-1]
 
+    @torch.no_grad()
     def sample(self,n_sample=1,scale=None):
         if self.G == []:
             return None
         if scale is None:
             scale = self.n_scale
 
-        with torch.no_grad():
-            zeros = torch.zeros_like(self.Z[0])
-            if n_sample != 1:
-                zeros = torch.cat(n_sample*[zeros])
-            z = self.z_std[0] * torch.randn_like(zeros)
-            sample = self.G[0](z,zeros)
-            for i in range(1,scale):
-              sample = F.interpolate(sample,self.imgsize[i])
-              z = self.z_std[i] * torch.randn_like(sample)
-              sample = self.G[i](z,sample)
+        # with torch.no_grad():
+        zeros = torch.zeros_like(self.Z[0])
+        if n_sample != 1:
+            zeros = torch.cat(n_sample*[zeros])
+        z = self.z_std[0] * torch.randn_like(zeros)
+        sample = self.G[0](z,zeros)
+        for i in range(1,scale):
+          sample = F.interpolate(sample,scale_factor=1./self.scale)
+          z = self.z_std[i] * torch.randn_like(sample)
+          sample = self.G[i](z,sample)
         return sample
 
+    @torch.no_grad()
     def inject(self,x,n_sample=1,insert=None,scale=None):
+        if self.G == []:
+            return None
         if insert is None:
             insert = self.n_scale
         if scale is None:
             scale = self.n_scale
-        if self.G == []:
-            return None
         if n_sample != 1:
             x = torch.cat(n_sample*[x],0)
 
-        with torch.no_grad():
-            for i in range(insert-1,scale):
-                x = F.interpolate(x,self.imgsize[i])
-                z = self.z_std[i] * torch.randn_like(x)
-                x = self.G[i](z,x)
+        for _ in range(scale-insert+1):
+            x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
+        # with torch.no_grad():
+        for i in range(insert-1,scale):
+            x = F.interpolate(x,scale_factor=1./self.scale)
+            z = self.z_std[i] * torch.randn_like(x)
+            x = self.G[i](z,x)
         return x
 
 
