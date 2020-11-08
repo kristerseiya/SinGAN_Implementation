@@ -116,8 +116,8 @@ class SinGAN():
 
         if G is None:
             G = []
-        if imgsize is None:
-            imgsize = []
+        # if imgsize is None:
+        #     imgsize = []
         if z_std is None:
             z_std = []
         if Z is None:
