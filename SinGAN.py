@@ -537,8 +537,8 @@ def TrainSinGANOneScale(img, \
 
         if (freq != 0) and (epoch % freq == 0):
             # show mean
-            G_loss_mean = sum(netG_loss[-10:]) / 10
-            D_loss_mean = sum(netD_loss[-10:]) / 10
+            G_loss_mean = sum(netG_losses[-10:]) / 10
+            D_loss_mean = sum(netD_losses[-10:]) / 10
             rec_loss_mean = sum(rec_losses[-10:]) / 10
             print("   generator loss   : {}".format(G_loss_mean))
             print("reconstruction loss : {}".format(rec_loss_mean))
