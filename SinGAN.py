@@ -431,7 +431,7 @@ def TrainSinGANOneScale(img, \
         else:
             fixed_z = z_std * torch.randn_like(img)
 
-    if recloss==None:
+    if recloss_fun is None:
         ReconstructionLoss = nn.MSELoss()
     else:
         ReconstructionLoss = recloss_fun
