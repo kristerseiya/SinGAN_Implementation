@@ -333,7 +333,7 @@ def loadSinGAN(path):
 # calculates gradient penalty loss for WGAN-GP critic
 def GradientPenaltyLoss(netD,real,fake):
     real = real.expand(fake.size())
-    alpha = torch.rand(fake.size(0),1,1,1.device=fake.device)
+    alpha = torch.rand(fake.size(0),1,1,1,device=fake.device)
     alpha = alpha.expand(fake.size())
     # alpha = torch.full_like(fake,alpha)
     interpolates = alpha * real + (1-alpha) * fake
