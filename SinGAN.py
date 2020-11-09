@@ -572,4 +572,4 @@ def TrainSinGANOneScale(img, \
             plt.show()
             netG.train()
 
-    return z_std, fixed_z, (netG_loss, netD_loss, wasserstein_distances, rec_losses)
+    return z_std, fixed_z, (netG_losses, netD_losses, wasserstein_distances, rec_losses)
