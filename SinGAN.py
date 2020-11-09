@@ -18,13 +18,29 @@ class ConvBatchNormLeakyBlock(nn.Module):
         x = self.lrelu(x)
         return x
 
+# a generator for SinGAN
+# takes two inputs (noise and generated image from previous generator)
+#
+# z ----|
+#       + ---- G -- + --- output
+# lr ---|-----------|
+#
 class AddSkipGenerator(nn.Module):
+    # constructor inputs:
+    # 1. channels:
+    #   a list of number of channels for each convolutional layer
+    #   len(channels) must be equal to # of convolutional layer + 1
+    # 2. kernels:
+    #   a list of kernel-sizes for each convolutional layer
+    #   len(kernels) must be equal to # of convolutional layer
+    #
     def __init__(self,channels,kernels):
         assert(len(channels)==(len(kernels)+1))
         super().__init__()
         num_conv = len(channels) - 1
         num_pad = sum(kernels) - len(kernels)
 
+        # input is padded in order to match the input and output size
         self.pad = nn.ZeroPad2d((num_pad//2,num_pad-num_pad//2, \
                                  num_pad//2,num_pad-num_pad//2))
         self.convlist = nn.ModuleList()
@@ -43,8 +59,27 @@ class AddSkipGenerator(nn.Module):
             x = l(x)
         return x + lr
 
-
+# critic (used for WGAN/WGAN-GP) with only convolutional num_layers
+#
 class ConvCritic(nn.Module):
+    # constructor inputs:
+    # 1. input_size:
+    #   a tuple or list of input tensor size
+    # 2. channels:
+    #   a list of number of channels for each convolutional layer
+    #   len(channels) must be equal to # of convolutional layer + 1
+    # 3. kernels:
+    #   a list of kernel-sizes for each convolutional layer
+    #   len(kernels) must be equal to # of convolutional layer
+    # 4. strides
+    #   a list of strides for each convolutional layer
+    #   len(strides) must be equal to # of convolutional layer
+    #   if no input is given, 1-stride is done for every convolutional layer
+    # 5. padding
+    #   if true, zero padding is done at the input to match the input size and output size
+    #   (input size and output size will not match if strides are not 1s)
+    #   by default, no padding is done (works better without padding)
+    #
     def __init__(self,channels,kernels,strides=None,padding=False):
 
         assert(len(channels)==(len(kernels)+1))
@@ -74,8 +109,24 @@ class ConvCritic(nn.Module):
             x = l(x)
         return x
 
-
+# discriminator for conventional GAN
+#
 class Discriminator(nn.Module):
+    # constructor inputs:
+    # 1. input_size:
+    #   a tuple or list of input tensor size
+    # 2. channels:
+    #   a list of number of channels for each convolutional layer
+    #   len(channels) must be equal to # of convolutional layer + 1
+    # 3. kernels:
+    #   a list of kernel-sizes for each convolutional layer
+    #   len(kernels) must be equal to # of convolutional layer
+    # 4. strides
+    #   a list of strides for each convolutional layer
+    #   len(strides) must be equal to # of convolutional layer
+    # 5. n_dense_layer
+    #   a number of dense layer at the end of the network
+    #
     def __init__(self,input_size,channels,kernels,strides,n_dense_layer=1):
         assert(len(channels)==(len(kernels)+1))
         super().__init__()
@@ -111,13 +162,29 @@ class Discriminator(nn.Module):
         x = self.sgmd(x)
         return x
 
+# class used to store the trained generators, reconstruct, and sample random images
+#
 class SinGAN():
-    def __init__(self, scale, G=None, z_std=None, Z=None, recimg=None):
+    # constructor inputs:
+    # 1. scale
+    #   scale factor for each downsampling
+    # 2. trained_size:
+    #   image size of image trained for. optional
+    # 3. G
+    #   list of generators, optional
+    # 4. z_std
+    #   list of standard deviation of noises for each generator
+    # 5. Z
+    #   list of fixed noises for each generator for reconstruction
+    # 6. recimg
+    #   list of reconstructed images for each generator
+    #   if G, z_std, Z are given and this isn't,
+    #   it will automatically reconstruct the image for you
+    #
+    def __init__(self, scale, trained_size=None, G=None, z_std=None, Z=None, recimg=None):
 
         if G is None:
             G = []
-        # if imgsize is None:
-        #     imgsize = []
         if z_std is None:
             z_std = []
         if Z is None:
@@ -125,17 +192,16 @@ class SinGAN():
         if recimg is None:
             recimg = []
 
-        # if len(Z) != len(imgsize) or \
         if len(Z) != len(G) or \
            len(Z) != len(z_std):
             raise Exception("G, imgsize, z_std, Z must be lists with same length")
 
         self.n_scale = len(G)
+        self.scale = scale
+        self.trained_size = trained_size
         self.G = G
         self.z_std = z_std
         self.Z = Z
-        # self.imgsize = imgsize
-        self.scale = scale
         self.recimg = recimg
 
         with torch.no_grad():
@@ -148,6 +214,16 @@ class SinGAN():
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
 
+    # append(self, netG, z_std, fixed_z):
+    #   appends a generator, noise information
+    # 1. netG
+    #   a new generator trained at one scale above
+    #   it is recommended to disable gradient calculation of network by requires_grad = False
+    # 2. z_std
+    #   standard deviation of noise input for the generator
+    # 3. fixed_z
+    #   fixed noise for the generator for reconstruction
+    #
     def append(self, netG, z_std, fixed_z):
         self.G.append(netG)
         # self.imgsize.append(imgsize)
@@ -167,19 +243,33 @@ class SinGAN():
 
         return
 
+    # reconstruct(self,scale_level=None)
+    #   outputs a reconstructed image
+    # 1. scale_level
+    #   the scale level of reconstruction
+    #   the smallest scale is 1, next scale up is 2, so forth
+    #   if not given, it will output the reconstruction at the final scale
+    #
     @torch.no_grad()
-    def reconstruct(self,scale=None):
-        if scale is None:
+    def reconstruct(self,scale_level=None):
+        if scale_level is None:
             return self.recimg[-1]
         else:
-            return self.recimg[self.n_scale-1]
+            return self.recimg[scale_level-1]
 
+    # sample(self,n_sample=1,scale_level=None)
+    #   generates random samples
+    # 1. n_sample
+    #   a number of random samples
+    # 2. scale_level
+    #   the scale level of samples
+    #
     @torch.no_grad()
-    def sample(self,n_sample=1,scale=None):
+    def sample(self,n_sample=1,scale_level=None):
         if self.G == []:
             return None
-        if scale is None:
-            scale = self.n_scale
+        if scale_level is None:
+            scale_level = self.n_scale
 
         # with torch.no_grad():
         zeros = torch.zeros_like(self.Z[0])
@@ -187,37 +277,47 @@ class SinGAN():
             zeros = torch.cat(n_sample*[zeros])
         z = self.z_std[0] * torch.randn_like(zeros)
         sample = self.G[0](z,zeros)
-        for i in range(1,scale):
+        for i in range(1,scale_level):
           sample = F.interpolate(sample,scale_factor=1./self.scale)
           z = self.z_std[i] * torch.randn_like(sample)
           sample = self.G[i](z,sample)
         return sample
 
+    # inject(self,x,n_sample=1,insert_level=None,scale_level=None)
+    # 1. n_sample
+    #   a number of random samples
+    # 2. insert_level
+    #   specifies where to inject the image
+    # 3. scale_level
+    #   the scale level of the output image
+    #
     @torch.no_grad()
-    def inject(self,x,n_sample=1,insert=None,scale=None):
+    def inject(self,x,n_sample=1,insert_level=None,scale_level=None):
         if self.G == []:
             return None
-        if insert is None:
-            insert = self.n_scale
-        if scale is None:
-            scale = self.n_scale
+        if insert_level is None:
+            insert_level = self.n_scale
+        if scale_level is None:
+            scale_level = self.n_scale
         if n_sample != 1:
             x = torch.cat(n_sample*[x],0)
 
-        for _ in range(scale-insert+1):
+        for _ in range(scale_level-insert_level+1):
             x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
-        # with torch.no_grad():
-        for i in range(insert-1,scale):
+        for i in range(insert_level-1,scale_level):
             x = F.interpolate(x,scale_factor=1./self.scale)
             z = self.z_std[i] * torch.randn_like(x)
             x = self.G[i](z,x)
         return x
 
 
+# loading and saving SinGAN
+
 def saveSinGAN(singan,path):
     torch.save({'n_scale': singan.n_scale, \
+                'scale': singan.scale, \
+                'trained_size': singan.trained_size, \
                 'models': singan.G, \
-                'image_sizes': singan.imgsize, \
                 'noise_amp': singan.z_std, \
                 'fixed_noise': singan.Z, \
                 'reconstructed_images': singan.recimg \
@@ -226,23 +326,16 @@ def saveSinGAN(singan,path):
 
 def loadSinGAN(path):
     load = torch.load(path)
-    singan = SinGAN(load['models'],load['image_sizes'],load['noise_amp'], \
-                    load['fixed_noise'],load['reconstructed_images'])
+    singan = SinGAN(load['scale'],load['trained_size'],load['models'], \
+                    load['noise_amp'], load['fixed_noise'],load['reconstructed_images'])
     return singan
 
-# def AdversarialLoss(disc_out):
-#     return -disc_out.mean()
-#
-# def WassersteinDistance(disc_real,disc_fake):
-#     return disc_fake.mean() - disc_real.mean()
-
-# def ReconstructionLoss(rec,target):
-#     criterion = nn.MSELoss()
-#     return criterion(rec,target)
-
+# calculates gradient penalty loss for WGAN-GP critic
 def GradientPenaltyLoss(netD,real,fake):
-    alpha = torch.rand(1,1).item()
-    alpha = torch.full_like(real,alpha)
+    real = real.expand(fake.size())
+    alpha = torch.rand(fake.size(0),1,1,1.device=fake.device)
+    alpha = alpha.expand(fake.size())
+    # alpha = torch.full_like(fake,alpha)
     interpolates = alpha * real + (1-alpha) * fake
     interpolates = torch.autograd.Variable(interpolates,requires_grad=True)
     Dout_interpolates = netD(interpolates)
@@ -254,6 +347,54 @@ def GradientPenaltyLoss(netD,real,fake):
 
     return grad_penalty
 
+# trains GAN for one scale of SinGAN
+# 1. img
+#   target image
+# 2. netG
+#   generator to train
+# 3. netG_optim
+#   optimizer for generator
+# 4. netD
+#   discriminator or critic
+# 5. netD_optim
+#   optimizer for discriminator or critic
+# 6. netG_chain
+#   SinGAN object that includes generator at lower scale
+# 7. num_epoch
+#   number of iteration
+# 8. mode
+#   specifies type of GAN
+#   option: 'wgangp', 'wgan', 'gan'
+#   gan type is 'wgangp' by default
+# 9. netG_lrscheduler
+#   learning rate scheduler for the generator, optional
+# 10. netD_lrscheduler
+#   learning rate scheduler for the critic, optional
+# 11. use_zero
+#   if True, use zero tensor for reconstruction
+#   however, zero will not be used when training GAN at the lowest scale
+# 12. batch_size
+#   a number of samples generated for each parameter update
+# 13. recloss
+#   a function used for calculation of reconstruction loss, nn.MSELoss is used by default
+# 14. recloss_scale
+#   scalar multiplier for reconstruction loss, 10 is used by default
+# 15. gp_scale
+#   scalar multiplier for gradient penalty loss, 0.1 is used by default
+# 16. clip_range
+#   clipping range for critic's parameter when training for WGAN (no clipping is done for WGAN-GP)
+#   0.01 by default
+# 17. z_std_scale
+#   scalar multiplier for input noise's standard deviation
+# 18. netG_iter
+#   a number of consecutive parameter updates for generator, 3 by default
+# 19. netD_iter
+#   a number of consecutive parameter updates for critic, 3 by default
+# 20. freq
+#   frequency of plotting random samples
+# 21. figsize
+#   size of the plot for generated samples
+#
 def TrainSinGANOneScale(img, \
                         netG,netG_optim, \
                         netD,netD_optim, \
@@ -261,7 +402,7 @@ def TrainSinGANOneScale(img, \
                         mode='wgangp', \
                         netG_lrscheduler=None, netD_lrscheduler=None, \
                         use_zero=True,batch_size=1, \
-                        recloss=None,recloss_scale=10,gp_scale=0.1,clip_range=0.01, \
+                        recloss_fun=None,recloss_scale=10,gp_scale=0.1,clip_range=0.01, \
                         z_std_scale=0.1, \
                         netG_iter=3,netD_iter=3, \
                         freq=0, figsize=(15,15)):
@@ -270,10 +411,10 @@ def TrainSinGANOneScale(img, \
     zeros = torch.zeros_like(img)
 
     if batch_size != 1:
-        batch = torch.cat(batch_size*[img])
+        # batch = torch.cat(batch_size*[img])
         batch_zeros = torch.cat(batch_size*[zeros])
     else:
-        batch = img
+        # batch = img
         batch_zeros = zeros
 
     if (netG_chain.n_scale == 0):
@@ -293,11 +434,12 @@ def TrainSinGANOneScale(img, \
     if recloss==None:
         ReconstructionLoss = nn.MSELoss()
     else:
-        ReconstructionLoss = recloss
+        ReconstructionLoss = recloss_fun
 
-    netG_loss = []
-    netD_loss = []
-    wasserstein_distance = []
+    netD_losses = []
+    wasserstein_distances = []
+    netG_losses = []
+    rec_losses = []
 
     netG.train()
     netD.train()
@@ -307,7 +449,7 @@ def TrainSinGANOneScale(img, \
         enableGrad(netD)
         disableGrad(netG)
 
-        for i in range(netD_iter):
+        for _ in range(netD_iter):
 
             # generate image
             if (first):
@@ -322,36 +464,34 @@ def TrainSinGANOneScale(img, \
             # train critic
             netD_optim.zero_grad()
 
-            Dout_real = netD(batch)
+            Dout_real = netD(img)
             Dout_fake = netD(Gout.detach())
             if mode == 'gan':
+                # calculate
                 real_loss = F.binary_cross_entropy(Dout_real,torch.ones_like(Dout_real))
                 real_loss.backward()
                 fake_loss = F.binary_cross_entropy(Dout_fake,torch.zeros_like(Dout_fake))
                 fake_loss.backward()
                 D_loss_total = real_loss.item() + fake_loss.item()
+                wdistance = 0.0
             elif mode == 'wgan':
+                # calculate wasserstein distance
                 wdistance_loss = Dout_fake.mean() - Dout_real.mean()
                 wdistance_loss.backward()
                 D_loss_total = wdistance_loss.item()
                 wdistance = wdistance_loss.item()
-                netD_loss.append( D_loss_total )
-                wasserstein_distance.append( wdistance )
             elif mode == 'wgangp':
+                # calculate wasserstein distance and gradient penalty
                 wdistance_loss = Dout_fake.mean() - Dout_real.mean()
                 wdistance_loss.backward()
-                grad_penalty_loss = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
+                grad_penalty_loss = GradientPenaltyLoss(netD,img,Gout) * gp_scale
                 grad_penalty_loss.backward()
                 D_loss_total = wdistance_loss.item() + grad_penalty_loss.item()
                 wdistance = wdistance_loss.item()
-                netD_loss.append( D_loss_total )
-                wasserstein_distance.append( wdistance )
 
-            # D_loss.backward()
-            # D_grad_penalty = GradientPenaltyLoss(netD,batch,Gout) * gp_scale
-            # D_grad_penalty.backward()
-            # D_loss_total = D_loss.item() + D_grad_penalty.item()
             netD_optim.step()
+            netD_losses.append( D_loss_total )
+            wasserstein_distances.append( wdistance )
 
             if mode == 'wgan':
                 for p in netD.parameters():
@@ -362,13 +502,12 @@ def TrainSinGANOneScale(img, \
         enableGrad(netG)
 
         for _ in range(netG_iter):
-            # if (i!=0):
             if (first):
-              Gout = netG(z,batch_zeros)
+                Gout = netG(z,batch_zeros)
             else:
-              base = netG_chain.sample(n_sample=batch_size)
-              base = F.interpolate(base,imgsize)
-              Gout = netG(z,base)
+                base = netG_chain.sample(n_sample=batch_size)
+                base = F.interpolate(base,imgsize)
+                Gout = netG(z,base)
 
             netG_optim.zero_grad()
             # train generator
@@ -380,14 +519,16 @@ def TrainSinGANOneScale(img, \
                 adv_loss = - Dout_fake.mean()
                 adv_loss.backward()
             if (first):
-              rec = netG(fixed_z,zeros)
+                rec = netG(fixed_z,zeros)
             else:
-              rec = netG(fixed_z,prev_rec)
+                rec = netG(fixed_z,prev_rec)
             rec_loss = ReconstructionLoss(rec,img) * recloss_scale
             rec_loss.backward()
             G_loss_total = adv_loss.item() + rec_loss.item()
+
             netG_optim.step()
-            netG_loss.append(G_loss_total)
+            netG_losses.append(G_loss_total)
+            rec_losses.append(rec_loss)
 
         if netD_lrscheduler is not None:
             netD_lrscheduler.step()
@@ -398,11 +539,13 @@ def TrainSinGANOneScale(img, \
             # show mean
             G_loss_mean = sum(netG_loss[-10:]) / 10
             D_loss_mean = sum(netD_loss[-10:]) / 10
+            rec_loss_mean = sum(rec_losses[-10:]) / 10
             print("   generator loss   : {}".format(G_loss_mean))
+            print("reconstruction loss : {}".format(rec_loss_mean))
             if mode == 'gan':
                 print(" discriminator loss : {}".format(D_loss_mean))
             elif mode == 'wgan' or mode == 'wgangp':
-                wasserstein_distance_mean = sum(wasserstein_distance[-10:]) / 10
+                wasserstein_distance_mean = sum(wasserstein_distances[-10:]) / 10
                 print("    critic loss     : {}".format(D_loss_mean))
                 print("wasserstein_distance: {}".format(wasserstein_distance_mean))
 
@@ -426,90 +569,7 @@ def TrainSinGANOneScale(img, \
 
             plt.figure(figsize=figsize)
             showTensorImage(sample,4)
-            # plt.subplot(1,2,1)
-            # showTensorImage(sample,4)
-            # plt.title("Random Sample")
-            # plt.subplot(1,2,2)
-            # showTensorImage(rec)
-            # plt.title("Reconstruction")
             plt.show()
             netG.train()
 
-    return z_std, fixed_z, (netG_loss, netD_loss)
-
-# class SRSinGAN():
-#     def __init__(self, img, netG=None, imgsize=None, z_std=None, fixed_z=None):
-#
-#         if netG is None:
-#             netG = []
-#         if imgsize is None:
-#             imgsize = []
-#         if z_std is None:
-#             z_std = []
-#         if fixed_z is None:
-#             fixed_z = []
-#
-#         if len(fixed_z) != len(imgsize) or \
-#            len(fixed_z) != len(netG) or \
-#            len(fixed_z) != len(z_std):
-#             raise Exception("all list must have the same length")
-#
-#         self.num_scales = len(netG) + 1
-#         self.lr = img
-#         self.generators = netG
-#         self.z_std = z_std
-#         self.z0 = fixed_z
-#         self.imgsize = imgsize
-#
-#     def append(self, netG, imgsize, z_std, fixed_z):
-#         self.generators.append(netG)
-#         self.imgsize.append(imgsize)
-#         self.z_std.append(z_std)
-#         self.z0.append(fixed_z)
-#         self.num_scales = self.num_scales + 1
-#         return
-#
-#     def reconstruct(self,scale=None):
-#         if self.generators == []:
-#             return self.lr
-#         if scale is None:
-#             scale = self.num_scales - 1
-#         with torch.no_grad():
-#           zeros = torch.zeros_like(self.z0[0])
-#           rec = self.generators[0](self.z0[0],self.lr)
-#           for i in range(1,scale):
-#               rec = F.interpolate(rec,self.imgsize[i])
-#               rec = self.generators[i](self.z0[i],rec)
-#         return rec
-#
-#     def sample(self,num_sample=1,scale=None):
-#         if self.generators == []:
-#             return self.lr
-#         if scale is None:
-#             scale = self.num_scales - 1
-#         with torch.no_grad():
-#           zeros = torch.zeros_like(self.z0[0])
-#           zeros = torch.cat(num_sample*[zeros])
-#           z = self.z_std[0] * torch.randn_like(zeros)
-#           sample = self.generators[0](z,self.lr)
-#           for i in range(1,scale):
-#               sample = F.interpolate(sample,self.imgsize[i])
-#               z = self.z_std[i] * torch.randn_like(sample)
-#               sample = self.generators[i](z,sample)
-#         return sample
-#
-#     def inject(self,x,insert=None,scale=None):
-#         if insert is None:
-#             insert = self.num_scales - 1
-#         if scale is None:
-#             scale = self.num_scales - 1
-#         if (insert < 2) or (insert > self.num_scales):
-#             raise ValueError("insert argument must be 2 to %d" % self.num_scales-1)
-#         else:
-#             if self.generators == []:
-#                 return None
-#             for i in range(insert-1,scale):
-#                 x = F.interpolate(x,self.imgsize[i])
-#                 z = self.z_std[i] * torch.randn_like(x)
-#                 x = self.generators[i](z,x)
-#             return x
+    return z_std, fixed_z, (netG_loss, netD_loss, wasserstein_distances, rec_losses)

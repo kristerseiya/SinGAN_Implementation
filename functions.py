@@ -9,21 +9,12 @@ import numpy as np
 import random
 from math import ceil, floor
 
+# loades image given a path to image
 def loadImage(path):
     img = Image.open(path)
     return img
 
-def loadGIF(path):
-    img = Image.open(path)
-    assert(img.is_animated)
-    n_frames = img.n_frames
-    imgs = []
-    for i in range(n_frames):
-        img.seek(i)
-        x = img.convert("RGB")
-        imgs.append(x)
-    return imgs
-
+# creates a list of images with different scales
 def createScaledImages(img,scale,min_len,max_len,match_min=True):
     scaled_imgs = []
     if type(img) == list:
@@ -71,6 +62,7 @@ def createScaledImages(img,scale,min_len,max_len,match_min=True):
 
     return scaled_imgs
 
+# copy image to tensor
 def convertImage2Tensor(img,transform=None,device=None):
     if transform==None:
         transform = transforms.Compose([transforms.ToTensor(), \
@@ -81,6 +73,7 @@ def convertImage2Tensor(img,transform=None,device=None):
         tensor = tensor.to(device)
     return tensor
 
+# copy a list of images to a list of tensors
 def convertImages2Tensor(imgs,transform=None, device=None):
     if transform==None:
         transform = transforms.Compose([transforms.ToTensor(), \
@@ -101,12 +94,8 @@ def convertImages2Tensor(imgs,transform=None, device=None):
         transformed_imgs.append(tensor)
     return transformed_imgs
 
+# plot tensors as images
 def showTensorImage(tensor,row_n=1):
-    # if tensor.dim() == 4 and tensor.size(0) == 1:
-    #     tensor = tensor.squeeze(0)
-    # elif tensor.dim() == 4:
-    #     idx = random.choice(range(tensor.size(0)))
-    #     tensor = tensor[idx]
     tensor = tensor.detach().cpu()
     tensor = torchvision.utils.make_grid(tensor,row_n)
     img = tensor.numpy()
@@ -116,6 +105,7 @@ def showTensorImage(tensor,row_n=1):
     img[img<0] = 0
     plt.imshow(img)
 
+# parameter initialization
 def xavier_uniform_weight_init(layer):
     if type(layer) == nn.Conv2d:
         torch.nn.init.xavier_uniform_(layer.weight)
@@ -130,11 +120,13 @@ def xavier_normal_weight_init(layer):
             layer.bias.data.fill_(0.1)
     return
 
+# turn off gradient calculation
 def disableGrad(net):
     for p in net.parameters():
         p.requires_grad = False
     return
 
+# turn on gradient calculation
 def enableGrad(net):
     for p in net.parameters():
         p.requires_grad = True

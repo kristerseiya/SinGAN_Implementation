@@ -4,6 +4,17 @@ import torch.nn.functional as F
 from .functions import *
 from .SinGAN import *
 
+# def loadGIF(path):
+#     img = Image.open(path)
+#     assert(img.is_animated)
+#     n_frames = img.n_frames
+#     imgs = []
+#     for i in range(n_frames):
+#         img.seek(i)
+#         x = img.convert("RGB")
+#         imgs.append(x)
+#     return imgs
+
 # class DownBlock(nn.Module):
 #     def __init__(self,input_channel,output_channel,kernel=3,stride=1,padding=1):
 #         super().__init__()
