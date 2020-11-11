@@ -168,8 +168,8 @@ def train_singan_onescale(img, \
             netD_optim.step()
             # netD_losses.append( D_loss_total )
             # wasserstein_distances.append( wdistance )
-            meta_data[epoch,i] = D_loss_total
-            meta_data[epoch,i+netD_iter] = wdistance
+            meta_data[epoch-1,i] = D_loss_total
+            meta_data[epoch-1,i+netD_iter] = wdistance
 
             if mode == 'wgan':
                 for p in netD.parameters():
@@ -210,8 +210,8 @@ def train_singan_onescale(img, \
             # netG_losses.append(G_loss_total)
             # rec_losses.append(rec_loss)
 
-            meta_data[epoch,netD_iter*2+j] = G_loss_total
-            meta_data[epoch,netD_iter*2+netG_iter+j] = rec_loss
+            meta_data[epoch-1,netD_iter*2+j] = G_loss_total
+            meta_data[epoch-1,netD_iter*2+netG_iter+j] = rec_loss
 
         if netD_lrscheduler is not None:
             netD_lrscheduler.step()
@@ -225,13 +225,13 @@ def train_singan_onescale(img, \
             # D_loss_mean = sum(netD_losses[-10:]) / 10
             # rec_loss_mean = sum(rec_losses[-10:]) / 10
             print("   generator loss   : {:.3f}".format(G_loss_total))
-            print("reconstruction loss : {:.3f}".format(rec_loss))
+            print(" reconstruction loss: {:.3f}".format(rec_loss))
             if mode == 'gan':
                 print(" discriminator loss : {:.3f}".format(D_loss_total))
             elif mode == 'wgan' or mode == 'wgangp':
                 # wasserstein_distance_mean = sum(wasserstein_distances[-10:]) / 10
-                print("    critic loss     : {:.3f}".format(D_loss_total))
-                print("wasserstein_distance: {:.3f}".format(wdistance))
+                print("     critic loss    : {:.3f}".format(D_loss_total))
+                print("wasserstein distance: {:.3f}".format(wdistance))
 
         if (plot_freq != 0) and (epoch % plot_freq == 0):
             netG.eval()
