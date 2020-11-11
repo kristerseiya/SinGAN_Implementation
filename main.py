@@ -29,6 +29,8 @@ else:
     device = None
 
 print("training starts...")
-train.train(arg.r, scaled_img_list, device=device)
+singan = train.train(arg.r, scaled_img_list, device=device)
 
+cpu = torch.device('cpu:0')
+models.move_singan(singan,cpu)
 models.save_singan(singan,'model.pth')

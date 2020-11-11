@@ -170,35 +170,37 @@ class SinGAN():
     #   image size of image trained for. optional
     # 3. G
     #   list of generators, optional
-    # 4. z_std
+    # 4. z_amp
     #   list of standard deviation of noises for each generator
     # 5. Z
     #   list of fixed noises for each generator for reconstruction
     # 6. recimg
     #   list of reconstructed images for each generator
-    #   if G, z_std, Z are given and this isn't,
+    #   if G, z_amp, Z are given and this isn't,
     #   it will automatically reconstruct the image for you
     #
-    def __init__(self, scale, trained_size=None, G=None, z_std=None, Z=None, recimg=None):
+    def __init__(self, scale, trained_size=None, G=None, z_amp=None, Z=None, recimg=None):
 
         if G is None:
             G = []
-        if z_std is None:
-            z_std = []
+        if z_amp is None:
+            z_amp = []
         if Z is None:
             Z = []
         if recimg is None:
             recimg = []
+        if trained_size is None:
+            trained_size = []
 
         if len(Z) != len(G) or \
-           len(Z) != len(z_std):
-            raise Exception("G, imgsize, z_std, Z must be lists with same length")
+           len(Z) != len(z_amp):
+            raise Exception("G, imgsize, z_amp, Z must be lists with same length")
 
         self.n_scale = len(G)
         self.scale = scale
         self.trained_size = trained_size
         self.G = G
-        self.z_std = z_std
+        self.z_amp = z_amp
         self.Z = Z
         self.recimg = recimg
 
@@ -212,21 +214,21 @@ class SinGAN():
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
 
-    # append(self, netG, z_std, fixed_z):
+    # append(self, netG, z_amp, fixed_z):
     #   appends a generator, noise information
     # 1. netG
     #   a new generator trained at one scale above
     #   it is recommended to disable gradient calculation of network by requires_grad = False
-    # 2. z_std
+    # 2. z_amp
     #   standard deviation of noise input for the generator
     # 3. fixed_z
     #   fixed noise for the generator for reconstruction
     #
-    def append(self, netG, z_std, fixed_z):
+    def append(self, netG, z_amp, fixed_z):
         self.G.append(netG)
-        # self.imgsize.append(imgsize)
-        self.z_std.append(z_std)
+        self.z_amp.append(z_amp)
         self.Z.append(fixed_z.detach())
+        self.trained_size.append((fixed_z.size(-2),fixed_z.size(-1)))
 
         with torch.no_grad():
             if self.n_scale > 0:
@@ -273,11 +275,11 @@ class SinGAN():
         zeros = torch.zeros_like(self.Z[0])
         if n_sample != 1:
             zeros = torch.cat(n_sample*[zeros])
-        z = self.z_std[0] * torch.randn_like(zeros)
+        z = self.z_amp[0] * torch.randn_like(zeros)
         sample = self.G[0](z,zeros)
         for i in range(1,scale_level):
           sample = F.interpolate(sample,scale_factor=1./self.scale)
-          z = self.z_std[i] * torch.randn_like(sample)
+          z = self.z_amp[i] * torch.randn_like(sample)
           sample = self.G[i](z,sample)
         return sample
 
@@ -304,7 +306,7 @@ class SinGAN():
             x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
         for i in range(insert_level-1,scale_level):
             x = F.interpolate(x,scale_factor=1./self.scale)
-            z = self.z_std[i] * torch.randn_like(x)
+            z = self.z_amp[i] * torch.randn_like(x)
             x = self.G[i](z,x)
         return x
 
@@ -316,7 +318,7 @@ def save_singan(singan,path):
                 'scale': singan.scale, \
                 'trained_size': singan.trained_size, \
                 'models': singan.G, \
-                'noise_amp': singan.z_std, \
+                'noise_amp': singan.noise_amp, \
                 'fixed_noise': singan.Z, \
                 'reconstructed_images': singan.recimg \
                 },path)
@@ -327,3 +329,12 @@ def load_singan(path):
     singan = SinGAN(load['scale'],load['trained_size'],load['models'], \
                     load['noise_amp'], load['fixed_noise'],load['reconstructed_images'])
     return singan
+
+def move_singan(singan,device):
+    for g in singan.G:
+        g.to(device)
+    for z in singan.Z:
+        z.to(device)
+    for r in singan.recimg:
+        r.to(device)
+    return
