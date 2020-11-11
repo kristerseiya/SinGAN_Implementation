@@ -2,7 +2,6 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from math import ceil
-import numpy as np
 
 class ConvBatchNormLeakyBlock(nn.Module):
     def __init__(self,input_channel,output_channel,kernel_size=3,stride=1,padding=0):

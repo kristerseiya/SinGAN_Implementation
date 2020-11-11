@@ -3,6 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from . import utils
+import numpy as np
 
 # calculates gradient penalty loss for WGAN-GP critic
 def GradientPenaltyLoss(netD,real,fake):
