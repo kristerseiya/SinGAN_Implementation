@@ -1,7 +1,5 @@
 import torch
-from .utils
-import .models
-import .train
+from . import models, utils, train
 import argparse
 
 img = loadImage("SinGAN_Implementation/3-nature-wallpaper-mountain.jpg")
