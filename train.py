@@ -210,8 +210,8 @@ def train_singan_onescale(img, \
             # netG_losses.append(G_loss_total)
             # rec_losses.append(rec_loss)
 
-            meta_data[netD_iter*2+j] = G_loss_total
-            meta_data[netD_iter*2+netG_iter+j] = rec_loss
+            meta_data[epoch,netD_iter*2+j] = G_loss_total
+            meta_data[epoch,netD_iter*2+netG_iter+j] = rec_loss
 
         if netD_lrscheduler is not None:
             netD_lrscheduler.step()
