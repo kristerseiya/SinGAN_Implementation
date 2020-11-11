@@ -233,29 +233,29 @@ def train_singan_onescale(img, \
                 print("    critic loss     : {:.3f}".format(D_loss_total))
                 print("wasserstein_distance: {:.3f}".format(wdistance))
 
-            if (plot_freq != 0) and (epoch % plot_freq == 0):
-                netG.eval()
-                with torch.no_grad():
-                    # display sample from generator
-                    if (first):
-                        tmp = torch.cat(7*[zeros],0)
-                        z = z_std * torch.randn_like(tmp)
-                        sample = netG(z,tmp)
-                        rec = netG(fixed_z,zeros)
-                    else:
-                        tmp = torch.cat(7*[zeros],0)
-                        z = z_std * torch.randn_like(tmp)
-                        base = singan.sample(n_sample=7)
-                        base = F.interpolate(base,imgsize)
-                        sample = netG(z,base)
-                        rec = netG(fixed_z,prev_rec)
+        if (plot_freq != 0) and (epoch % plot_freq == 0):
+            netG.eval()
+            with torch.no_grad():
+                # display sample from generator
+                if (first):
+                    tmp = torch.cat(7*[zeros],0)
+                    z = z_std * torch.randn_like(tmp)
+                    sample = netG(z,tmp)
+                    rec = netG(fixed_z,zeros)
+                else:
+                    tmp = torch.cat(7*[zeros],0)
+                    z = z_std * torch.randn_like(tmp)
+                    base = singan.sample(n_sample=7)
+                    base = F.interpolate(base,imgsize)
+                    sample = netG(z,base)
+                    rec = netG(fixed_z,prev_rec)
 
-                    sample = torch.cat([sample,rec],0)
+                sample = torch.cat([sample,rec],0)
 
-                plt.figure(figsize=figsize)
-                utils.show_tensor_image(sample,4)
-                plt.show()
-                netG.train()
+            plt.figure(figsize=figsize)
+            utils.show_tensor_image(sample,4)
+            plt.show()
+            netG.train()
 
     return z_std, fixed_z, meta_data #(netG_losses, netD_losses, wasserstein_distances, rec_losses)
 
