@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from math import ceil
+from . import utils
 
 class ConvBatchNormLeakyBlock(nn.Module):
     def __init__(self,input_channel,output_channel,kernel_size=3,stride=1,padding=0):
@@ -208,7 +209,8 @@ class SinGAN():
                     zeros = torch.randn_like(Z[0])
                     new_recimg = self.G[0](Z[0],zeros)
                 else:
-                    prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
+                    prev = utils.upsample(self.recimg[-1],1./self.scale)
+                    # prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
 
@@ -230,7 +232,8 @@ class SinGAN():
 
         with torch.no_grad():
             if self.n_scale > 0:
-                prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
+                prev = utils.upsample(self.recimg[-1],1./self.scale)
+                # prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                 new_recimg = netG(fixed_z,prev)
             else:
                 zeros = torch.zeros_like(fixed_z)
@@ -263,22 +266,25 @@ class SinGAN():
     #   the scale level of samples
     #
     @torch.no_grad()
-    def sample(self,n_sample=1,scale_level=None):
+    def sample(self,input_size=None, n_sample=1,scale_level=None):
         if self.G == []:
             return None
         if scale_level is None:
             scale_level = self.n_scale
 
-        # with torch.no_grad():
-        zeros = torch.zeros_like(self.Z[0])
+        if input_size is not None:
+            zeros = torch.zeros(1,self.Z[0].size(1),input_size[0],input_size[1],device=self.Z[0].device)
+        else:
+            zeros = torch.zeros_like(self.Z[0])
         if n_sample != 1:
             zeros = torch.cat(n_sample*[zeros])
         z = self.z_amp[0] * torch.randn_like(zeros)
         sample = self.G[0](z,zeros)
         for i in range(1,scale_level):
-          sample = F.interpolate(sample,scale_factor=1./self.scale)
-          z = self.z_amp[i] * torch.randn_like(sample)
-          sample = self.G[i](z,sample)
+            sample = utils.upsample(sample, 1./self.scale)
+            # sample = F.interpolate(sample,scale_factor=1./self.scale)
+            z = self.z_amp[i] * torch.randn_like(sample)
+            sample = self.G[i](z,sample)
         return sample
 
     # inject(self,x,n_sample=1,insert_level=None,scale_level=None)
@@ -301,9 +307,11 @@ class SinGAN():
             x = torch.cat(n_sample*[x],0)
 
         for _ in range(scale_level-insert_level+1):
-            x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
+            x = utils.downsample(x, self.scale)
+            # x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
         for i in range(insert_level-1,scale_level):
-            x = F.interpolate(x,scale_factor=1./self.scale)
+            x = utils.upsample(x, 1./self.scale)
+            # x = F.interpolate(x,scale_factor=1./self.scale)
             z = self.z_amp[i] * torch.randn_like(x)
             x = self.G[i](z,x)
         return x
@@ -316,7 +324,7 @@ def save_singan(singan,path):
                 'scale': singan.scale, \
                 'trained_size': singan.imgsize, \
                 'models': singan.G, \
-                'noise_amp': singan.noise_amp, \
+                'noise_amp': singan.z_amp, \
                 'fixed_noise': singan.Z, \
                 'reconstructed_images': singan.recimg \
                 },path)
@@ -329,10 +337,8 @@ def load_singan(path):
     return singan
 
 def move_singan(singan,device):
-    for g in singan.G:
-        g.to(device)
-    for z in singan.Z:
-        z.to(device)
-    for r in singan.recimg:
-        r.to(device)
+    for i in range(singan.n_scale):
+        singan.G[i] = singan.G[i].to(device)
+        singan.Z[i] = singan.Z[i].to(device)
+        singan.recimg[i] = singan.recimg[i].to(device)
     return

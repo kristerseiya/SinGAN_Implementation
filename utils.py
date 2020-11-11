@@ -101,8 +101,7 @@ def show_tensor_image(tensor,row_n=1):
     img = tensor.numpy()
     img = img.transpose([1,2,0])
     img = (img + 1) / 2
-    img[img>1] = 1
-    img[img<0] = 0
+    img = np.clip(img,0.,1.)
     plt.imshow(img)
 
 # parameter initialization
@@ -132,6 +131,30 @@ def enable_grad(net):
         p.requires_grad = True
     return
 
+def downsample(tensor,r):
+    h, w = tensor.size(-2), tensor.size(-1)
+    nh , nw = ceil(h*r), ceil(w*r)
+    tensor = F.interpolate(tensor,(nh,nw))
+    return tensor
+
+def upsample(tensor, r):
+    h, w = tensor.size(-2), tensor.size(-1)
+    nh , nw = floor(h*r), floor(w*r)
+    tensor = F.interpolate(tensor,(nh,nw))
+    return tensor
+
+def save_tensor_image(tensor,path):
+    tensor = tensor.detach().cpu()
+    arr = tensor.numpy()
+    arr = arr.squeeze(0)
+    arr = arr.transpose([1,2,0])
+    arr = (arr + 1) / 2
+    arr = np.clip(arr,0.,1.)
+    arr = arr * 255
+    arr = arr.astype(np.uint8)
+    img = Image.fromarray(arr)
+    img.save(path)
+    return
 
 ## SSIM
 import torch
