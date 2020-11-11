@@ -179,7 +179,7 @@ class SinGAN():
     #   if G, z_amp, Z are given and this isn't,
     #   it will automatically reconstruct the image for you
     #
-    def __init__(self, scale, trained_size=None, G=None, z_amp=None, Z=None, recimg=None):
+    def __init__(self, scale, G=None, z_amp=None, Z=None, recimg=None):
 
         if G is None:
             G = []
@@ -189,8 +189,6 @@ class SinGAN():
             Z = []
         if recimg is None:
             recimg = []
-        if trained_size is None:
-            trained_size = []
 
         if len(Z) != len(G) or \
            len(Z) != len(z_amp):
@@ -198,11 +196,11 @@ class SinGAN():
 
         self.n_scale = len(G)
         self.scale = scale
-        self.trained_size = trained_size
         self.G = G
         self.z_amp = z_amp
         self.Z = Z
         self.recimg = recimg
+        self.imgsize = [(z.size(-2),z.size(-1)) for z in Z]
 
         with torch.no_grad():
             for i in range(len(recimg),self.n_scale):
@@ -228,7 +226,7 @@ class SinGAN():
         self.G.append(netG)
         self.z_amp.append(z_amp)
         self.Z.append(fixed_z.detach())
-        self.trained_size.append((fixed_z.size(-2),fixed_z.size(-1)))
+        self.imgsize.append((fixed_z.size(-2),fixed_z.size(-1)))
 
         with torch.no_grad():
             if self.n_scale > 0:
@@ -316,7 +314,7 @@ class SinGAN():
 def save_singan(singan,path):
     torch.save({'n_scale': singan.n_scale, \
                 'scale': singan.scale, \
-                'trained_size': singan.trained_size, \
+                'trained_size': singan.imgsize, \
                 'models': singan.G, \
                 'noise_amp': singan.noise_amp, \
                 'fixed_noise': singan.Z, \
@@ -326,8 +324,8 @@ def save_singan(singan,path):
 
 def load_singan(path):
     load = torch.load(path)
-    singan = SinGAN(load['scale'],load['trained_size'],load['models'], \
-                    load['noise_amp'], load['fixed_noise'],load['reconstructed_images'])
+    singan = SinGAN(load['scale'],load['models'], load['noise_amp'], \
+                    load['fixed_noise'],load['reconstructed_images'])
     return singan
 
 def move_singan(singan,device):
