@@ -243,7 +243,10 @@ class SinGAN():
     def append(self, netG, z_amp, fixed_z):
         self.G.append(netG)
         self.z_amp.append(z_amp)
-        self.Z.append(fixed_z.detach())
+        if type(fixed_z) == torch.Tensor:
+            self.Z.append(fixed_z.detach())
+        else:
+            self.Z.append(fixed_z)
         self.imgsize.append((fixed_z.size(-2),fixed_z.size(-1)))
 
         with torch.no_grad():
