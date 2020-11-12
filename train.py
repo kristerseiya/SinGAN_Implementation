@@ -10,7 +10,6 @@ def GradientPenaltyLoss(netD,real,fake):
     real = real.expand(fake.size())
     alpha = torch.rand(fake.size(0),1,1,1,device=fake.device)
     alpha = alpha.expand(fake.size())
-    # alpha = torch.full_like(fake,alpha)
     interpolates = alpha * real + (1-alpha) * fake
     interpolates = torch.autograd.Variable(interpolates,requires_grad=True)
     Dout_interpolates = netD(interpolates)
@@ -83,14 +82,6 @@ def train_singan_onescale(img, \
                           log_freq=0, plot_freq=0, figsize=(15,15)):
 
     imgsize = (img.size(-2),img.size(-1))
-    # zeros = torch.zeros_like(img)
-
-    # if batch_size != 1:
-    #     # batch = torch.cat(batch_size*[img])
-    #     batch_zeros = torch.cat(batch_size*[zeros])
-    # else:
-    #     # batch = img
-    #     batch_zeros = zeros
 
     if  singan.n_scale == 0:
         z_std = z_std_scale
@@ -100,32 +91,14 @@ def train_singan_onescale(img, \
         prev_rec = F.interpolate(prev_rec,imgsize)
         z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
         if use_zero:
-            # fixed_z = zeros
             fixed_z = 0.
         else:
             fixed_z = z_std * torch.randn_like(img)
-
-    # prev_rec = singan.reconstruct()
-    # if type(prev_rec) == torch.Tensor:
-    #     prev_rec = F.interpolate(prev_rec,imgsize)
-    #     z_std = z_std_scale * torch.sqrt(((prev_rec-img)**2).mean()).item()
-    #     if use_zero:
-    #         fixed_z = 0.
-    #     else:
-    #         fixed_z = z_std * torch.randn_like(img)
-    # else:
-    #     z_std = z_std_scale
-    #     fixed_z = z_std * torch.randn_like(img)
 
     if recloss_fun is None:
         ReconstructionLoss = nn.MSELoss()
     else:
         ReconstructionLoss = recloss_fun
-
-    # netD_losses = []
-    # wasserstein_distances = []
-    # netG_losses = []
-    # rec_losses = []
 
     meta_data = np.zeros((num_epoch,(netG_iter+netD_iter)*2))
 
@@ -147,11 +120,6 @@ def train_singan_onescale(img, \
                 base = singan.sample(n_sample=batch_size)
                 base = F.interpolate(base,imgsize)
                 Gout = netG(z,base)
-            # z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
-            # base = singan.sample(n_sample=batch_size)
-            # if type(base) == torch.Tensor:
-            #     base = F.interpolate(base, imgsize)
-            # Gout = netG(z,base)
 
             # train critic
             netD_optim.zero_grad()
@@ -181,8 +149,6 @@ def train_singan_onescale(img, \
                 wdistance = wdistance_loss.item()
 
             netD_optim.step()
-            # netD_losses.append( D_loss_total )
-            # wasserstein_distances.append( wdistance )
             meta_data[epoch-1,i] = D_loss_total
             meta_data[epoch-1,i+netD_iter] = wdistance
 
@@ -203,10 +169,6 @@ def train_singan_onescale(img, \
                 base = singan.sample(n_sample=batch_size)
                 base = F.interpolate(base,imgsize)
                 Gout = netG(z,base)
-            # base = singan.sample(n_sample=batch_size)
-            # if type(base) == torch.Tensor:
-            #     base = F.interpolate(base,imgsize)
-            # Gout = netG(z,base)
 
             # train generator
             netG_optim.zero_grad()
@@ -226,8 +188,6 @@ def train_singan_onescale(img, \
             G_loss_total = adv_loss.item() + rec_loss.item()
 
             netG_optim.step()
-            # netG_losses.append(G_loss_total)
-            # rec_losses.append(rec_loss)
 
             meta_data[epoch-1,netD_iter*2+j] = G_loss_total
             meta_data[epoch-1,netD_iter*2+netG_iter+j] = rec_loss
@@ -239,16 +199,11 @@ def train_singan_onescale(img, \
 
         if (log_freq != 0) and (epoch % log_freq == 0):
             print("[{:d}/{:d}]".format(epoch,num_epoch))
-            # show mean
-            # G_loss_mean = sum(netG_losses[-10:]) / 10
-            # D_loss_mean = sum(netD_losses[-10:]) / 10
-            # rec_loss_mean = sum(rec_losses[-10:]) / 10
             print("   generator loss   : {:.3f}".format(G_loss_total))
             print(" reconstruction loss: {:.3f}".format(rec_loss))
             if mode == 'gan':
                 print(" discriminator loss : {:.3f}".format(D_loss_total))
             elif mode == 'wgan' or mode == 'wgangp':
-                # wasserstein_distance_mean = sum(wasserstein_distances[-10:]) / 10
                 print("     critic loss    : {:.3f}".format(D_loss_total))
                 print("wasserstein distance: {:.3f}".format(wdistance))
 
@@ -258,10 +213,7 @@ def train_singan_onescale(img, \
                 # display sample from generator
                 if singan.n_scale == 0:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                    # if type(singan.init) is not torch.Tensor:
                     sample = netG(z,0.)
-                    # else:
-                    #     sample = netG(z,singan.init.expand(z.size()))
                     rec = netG(fixed_z,0.)
                 else:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
@@ -269,12 +221,6 @@ def train_singan_onescale(img, \
                     base = F.interpolate(base,imgsize)
                     sample = netG(z,base)
                     rec = netG(fixed_z,prev_rec)
-                # z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                # base = singan.sample(n_sample=7)
-                # if type(base) == torch.Tensor:
-                #     base = F.interpolate(base,imgsize)
-                # sample = netG(z,base)
-                # rec = netG(fixed_z,prev_rec)
 
                 sample = torch.cat([sample,rec],0)
 
@@ -282,7 +228,7 @@ def train_singan_onescale(img, \
             utils.show_tensor_image(sample,4)
             netG.train()
 
-    return z_std, fixed_z, meta_data #(netG_losses, netD_losses, wasserstein_distances, rec_losses)
+    return z_std, fixed_z, meta_data
 
 
 def train(r, scaled_img_list, device=None):

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from math import ceil, floor
+import imageio
 
 # loades image given a path to image
 def load_image(path):
@@ -153,7 +154,7 @@ def upsample(tensor, r):
     tensor = F.interpolate(tensor,(nh,nw))
     return tensor
 
-def save_tensor_image(tensor,path, row_n=2):
+def save_tensor_image(tensor, path, row_n=2):
     tensor = tensor.detach().cpu()
     tensor = torchvision.utils.make_grid(tensor,row_n)
     arr = tensor.numpy()
@@ -164,6 +165,17 @@ def save_tensor_image(tensor,path, row_n=2):
     arr = arr.astype(np.uint8)
     img = Image.fromarray(arr)
     img.save(path)
+    return
+
+def save_tensor_gif(tensor, path):
+    tensor = tensor.detach().cpu()
+    images = tensor.numpy()
+    images = images.transpose([0,2,3,1])
+    images = (images + 1) / 2
+    images = np.clip(images, 0., 1.)
+    images = images * 255
+    images = images.astype(np.uint8)
+    imageio.mimsave(path,images)
     return
 
 ## SSIM

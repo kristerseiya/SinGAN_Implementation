@@ -180,7 +180,7 @@ class SinGAN():
     #   if G, z_amp, Z are given and this isn't,
     #   it will automatically reconstruct the image for you
     #
-    def __init__(self, scale, G=None, z_amp=None, Z=None, recimg=None, device=None):
+    def __init__(self, scale, imgsize=None, G=None, z_amp=None, Z=None, recimg=None, device=None):
 
         if G is None:
             G = []
@@ -198,14 +198,6 @@ class SinGAN():
 
         self.n_scale = len(G)
 
-        # if init is not None:
-        #     if device is not None:
-        #         self.init = init.to(device)
-        #     else:
-        #         self.init = init
-        # else:
-        #     self.init = 0.
-
         if device is not None:
             for i in range(self.n_scale):
                 G[i] = G[i].to(device)
@@ -216,17 +208,15 @@ class SinGAN():
         self.z_amp = z_amp
         self.Z = Z
         self.recimg = recimg
-        self.imgsize = [(z.size(-2),z.size(-1)) for z in Z]
+        self.imgsize = imgsize
         self.device = device
 
         with torch.no_grad():
             for i in range(len(recimg),self.n_scale):
                 if i == 0:
-                    # zeros = torch.randn_like(Z[0])
                     new_recimg = self.G[0](Z[0],0.)
                 else:
                     prev = utils.upsample(self.recimg[-1],1./self.scale)
-                    # prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
 
@@ -251,10 +241,8 @@ class SinGAN():
         with torch.no_grad():
             if self.n_scale > 0:
                 prev = utils.upsample(self.recimg[-1],1./self.scale)
-                # prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
                 new_recimg = netG(fixed_z,prev)
             else:
-                # zeros = torch.zeros_like(fixed_z)
                 new_recimg = netG(fixed_z,0.)
 
         self.recimg.append(new_recimg.detach())
@@ -287,27 +275,19 @@ class SinGAN():
     #   the scale level of samples
     #
     @torch.no_grad()
-    def sample(self,input_size=None, n_sample=1, output_level=None):
+    def sample(self,input_size=None, output_level=-1, n_sample=1):
         if self.G == []:
             return None
-        if output_level is None:
-            output_level = self.n_scale - 1
+        if output_level < 0:
+            output_level = self.n_scale + output_level
 
-        # if input_size is not None:
-        #     zeros = torch.zeros(1,self.Z[0].size(1),input_size[0],input_size[1],device=self.Z[0].device)
-        # else:
-        #     zeros = torch.zeros_like(self.Z[0])
-        # if n_sample != 1:
-        #     zeros = torch.cat(n_sample*[zeros])
         if input_size is not None:
             z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),input_size[0],input_size[1],device=self.device)
         else:
             z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),device=self.device)
-            # z = self.z_amp[0] * torch.randn_like(zeros)
         sample = self.G[0](z,0.)
         for i in range(1,output_level+1):
             sample = utils.upsample(sample, 1./self.scale)
-            # sample = F.interpolate(sample,scale_factor=1./self.scale)
             z = self.z_amp[i] * torch.randn_like(sample)
             sample = self.G[i](z,sample)
         return sample
@@ -321,13 +301,9 @@ class SinGAN():
     #   the scale level of the output image
     #
     @torch.no_grad()
-    def inject(self,x,n_sample=1,inject_level=None,output_level=None):
+    def inject(self,x,inject_level=-1,output_level=-1,n_sample=1):
         if self.G == []:
             return None
-        if inject_level is None:
-            inject_level = self.n_scale - 1
-        if output_level is None:
-            output_level = self.n_scale - 1
         if n_sample != 1:
             x = torch.cat(n_sample*[x],0)
         if inject_level < 0:
@@ -335,24 +311,57 @@ class SinGAN():
         if output_level < 0:
             output_level = self.n_scale + output_level
 
-        # for _ in range(scale_level-insert_level+1):
-        #     x = utils.downsample(x, self.scale)
-            # x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
         z = self.z_amp[inject_level] * torch.randn_like(x)
         x = self.G[inject_level](z,x)
         for i in range(inject_level+1,output_level+1):
             x = utils.upsample(x, 1./self.scale)
-            # x = F.interpolate(x,scale_factor=1./self.scale)
             z = self.z_amp[i] * torch.randn_like(x)
             x = self.G[i](z,x)
         return x
 
-    def to(device):
+    def to(self,device):
+        self.device = device
         for i in range(self.n_scale):
             self.G[i] = self.G[i].to(device)
-            self.Z[i] = self.Z[i].to(device)
             self.recimg[i] = self.recimg[i].to(device)
+            if type(self.Z[i]) is torch.Tensor:
+                self.Z[i] = self.Z[i].to(device)
         return self
+
+    # @torch.no_grad()
+    # def forward_(self, input1, input2=0., input_level=0, output_level=-1):
+    #     if input_level < 0:
+    #         input_level = self.n_scale + input_level
+    #     if output_level < 0:
+    #         output_level = self.n_scale + output_level
+    #
+    #     x = self.G[input_level](input1,input2)
+    #     for i in range(input_level+1,output_level+1):
+    #         sample = utils.upsample(sample, 1./self.scale)
+    #         z = self.z_amp[i] * torch.randn_like(sample)
+    #     sample = self.G[i](z,sample)
+
+
+    def walk(self,n,alpha,beta):
+        z_t1 = 0.
+        z_t = self.Z[0]
+
+        if n > 0:
+            xs = self.G[0](z_t,0.)
+            for j in range(1,self.n_scale):
+                xs = utils.upsample(xs,1./self.scale)
+                xs = self.G[j](0.,xs)
+        for i in range(1,n):
+            z_diff = beta * (z_t - z_t1) + (1 - beta) * torch.rand_like(z_t)
+            z_t1 = z_t
+            z_t = alpha * self.Z[0]  + (1 - alpha) * (z_t + z_diff)
+            x = self.G[0](z_t,0.)
+            for j in range(1,self.n_scale):
+                x = utils.upsample(x,1./self.scale)
+                x = self.G[j](0.,x)
+            xs = torch.cat([xs,x],0)
+        return xs
+
 
 
 # loading and saving SinGAN
@@ -360,7 +369,6 @@ class SinGAN():
 def save_singan(singan,path):
     torch.save({'n_scale': singan.n_scale, \
                 'scale': singan.scale, \
-                # 'init': singan.init, \
                 'trained_size': singan.imgsize, \
                 'models': singan.G, \
                 'noise_amp': singan.z_amp, \
@@ -371,8 +379,8 @@ def save_singan(singan,path):
 
 def load_singan(path):
     load = torch.load(path)
-    singan = SinGAN(load['scale'], load['models'], load['noise_amp'], \
-                    load['fixed_noise'],load['reconstructed_images'])
+    singan = SinGAN(load['scale'], load['trained_size'], load['models'], \
+                    load['noise_amp'], load['fixed_noise'],load['reconstructed_images'])
     return singan
 
 # def move_singan(singan,device):
