@@ -258,7 +258,10 @@ def train_singan_onescale(img, \
                 # display sample from generator
                 if singan.n_scale == 0:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                    sample = netG(z,singan.init.expand(z.size()))
+                    if type(singan.init) is not torch.Tensor:
+                        sample = netG(z,singan.init)
+                    else:
+                        sample = netG(z,singan.init.expand(z.size()))
                     rec = netG(fixed_z,singan.init)
                 else:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
