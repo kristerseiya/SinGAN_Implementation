@@ -240,14 +240,13 @@ class SinGAN():
     # 3. fixed_z
     #   fixed noise for the generator for reconstruction
     #
-    def append(self, netG, z_amp, fixed_z):
+    def append(self, netG, z_amp, fixed_z, imgsize):
         self.G.append(netG)
         self.z_amp.append(z_amp)
         if type(fixed_z) == torch.Tensor:
             self.Z.append(fixed_z.detach())
         else:
             self.Z.append(fixed_z)
-        self.imgsize.append((fixed_z.size(-2),fixed_z.size(-1)))
 
         with torch.no_grad():
             if self.n_scale > 0:
@@ -259,6 +258,7 @@ class SinGAN():
                 new_recimg = netG(fixed_z,self.init)
 
         self.recimg.append(new_recimg.detach())
+        self.imgsize.append((new_recimg.size(-2),new_recimg.size(-1)))
         self.n_scale = self.n_scale + 1
 
         return self

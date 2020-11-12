@@ -92,33 +92,30 @@ def train_singan_onescale(img, \
     #     # batch = img
     #     batch_zeros = zeros
 
-    # if singan.n_scale == 0:
-    #     first = True
-    #     z_std = z_std_scale
-    #     fixed_z = z_std * torch.randn_like(img)
-    # else:
-    #     first = False
-    #     prev_rec = singan.reconstruct()
-    #     prev_rec = F.interpolate(prev_rec,imgsize)
-    #     z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
-    #     if use_zero:
-    #         # fixed_z = zeros
-    #         fixed_z = 0.
-    #     else:
-    #         fixed_z = z_std * torch.randn_like(img)
-
-    prev_rec = singan.reconstruct()
-    if type(prev_rec) == torch.Tensor:
+    if singan.n_scale == 0:
+        z_std = z_std_scale
+        fixed_z = z_std * torch.randn_like(img)
+    else:
+        prev_rec = singan.reconstruct()
         prev_rec = F.interpolate(prev_rec,imgsize)
-    if type(prev_rec) == torch.Tensor:
-        z_std = z_std_scale * torch.sqrt(((prev_rec-img)**2).mean()).item()
+        z_std = z_std_scale * torch.sqrt(F.mse_loss(prev_rec,img)).item()
         if use_zero:
+            # fixed_z = zeros
             fixed_z = 0.
         else:
             fixed_z = z_std * torch.randn_like(img)
-    else:
-        z_std = z_std_scale
-        fixed_z = z_std * torch.randn_like(img)
+
+    # prev_rec = singan.reconstruct()
+    # if type(prev_rec) == torch.Tensor:
+    #     prev_rec = F.interpolate(prev_rec,imgsize)
+    #     z_std = z_std_scale * torch.sqrt(((prev_rec-img)**2).mean()).item()
+    #     if use_zero:
+    #         fixed_z = 0.
+    #     else:
+    #         fixed_z = z_std * torch.randn_like(img)
+    # else:
+    #     z_std = z_std_scale
+    #     fixed_z = z_std * torch.randn_like(img)
 
     if recloss_fun is None:
         ReconstructionLoss = nn.MSELoss()
@@ -143,19 +140,18 @@ def train_singan_onescale(img, \
         for i in range(netD_iter):
 
             # generate image
-            # if (first):
-            #     z = z_std * torch.randn_like(batch_zeros)
-            #     Gout = netG(z,batch_zeros)
-            # else:
-            #     z = z_std * torch.randn_like(batch_zeros)
-            #     base = singan.sample(n_sample=batch_size)
-            #     base = F.interpolate(base,imgsize)
-            #     Gout = netG(z,base)
             z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
-            base = singan.sample(n_sample=batch_size)
-            if type(base) == torch.Tensor:
-                base = F.interpolate(base, imgsize)
-            Gout = netG(z,base)
+            if singan.n_scale == 0:
+                Gout = netG(z,singan.init)
+            else:
+                base = singan.sample(n_sample=batch_size)
+                base = F.interpolate(base,imgsize)
+                Gout = netG(z,base)
+            # z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
+            # base = singan.sample(n_sample=batch_size)
+            # if type(base) == torch.Tensor:
+            #     base = F.interpolate(base, imgsize)
+            # Gout = netG(z,base)
 
             # train critic
             netD_optim.zero_grad()
@@ -201,16 +197,16 @@ def train_singan_onescale(img, \
         for j in range(netG_iter):
 
             # generate image
-            # if (first):
-            #     Gout = netG(z,batch_zeros)
-            # else:
-            #     base = singan.sample(n_sample=batch_size)
-            #     base = F.interpolate(base,imgsize)
-            #     Gout = netG(z,base)
-            base = singan.sample(n_sample=batch_size)
-            if type(base) == torch.Tensor:
+            if singan.n_scale == 0:
+                Gout = netG(z,singan.init)
+            else:
+                base = singan.sample(n_sample=batch_size)
                 base = F.interpolate(base,imgsize)
-            Gout = netG(z,base)
+                Gout = netG(z,base)
+            # base = singan.sample(n_sample=batch_size)
+            # if type(base) == torch.Tensor:
+            #     base = F.interpolate(base,imgsize)
+            # Gout = netG(z,base)
 
             # train generator
             netG_optim.zero_grad()
@@ -221,11 +217,10 @@ def train_singan_onescale(img, \
             elif mode == 'wgan' or mode == 'wgangp':
                 adv_loss = - Dout_fake.mean()
                 adv_loss.backward()
-            # if (first):
-            #     rec = netG(fixed_z,zeros)
-            # else:
-            #     rec = netG(fixed_z,prev_rec)
-            rec = netG(fixed_z, prev_rec)
+            if singan.n_scale == 0:
+                rec = netG(fixed_z,singan.init)
+            else:
+                rec = netG(fixed_z,prev_rec)
             rec_loss = ReconstructionLoss(rec,img) * recloss_scale
             rec_loss.backward()
             G_loss_total = adv_loss.item() + rec_loss.item()
@@ -261,24 +256,22 @@ def train_singan_onescale(img, \
             netG.eval()
             with torch.no_grad():
                 # display sample from generator
-                # if (first):
-                #     tmp = torch.cat(7*[zeros],0)
-                #     z = z_std * torch.randn_like(tmp)
-                #     sample = netG(z,tmp)
-                #     rec = netG(fixed_z,zeros)
-                # else:
-                #     tmp = torch.cat(7*[zeros],0)
-                #     z = z_std * torch.randn_like(tmp)
-                #     base = singan.sample(n_sample=7)
-                #     base = F.interpolate(base,imgsize)
-                #     sample = netG(z,base)
-                #     rec = netG(fixed_z,prev_rec)
-                z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                base = singan.sample(n_sample=7)
-                if type(base) == torch.Tensor:
+                if singan.n_scale == 0:
+                    z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
+                    sample = netG(z,singan.init.expand(z.size()))
+                    rec = netG(fixed_z,singan.init)
+                else:
+                    z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
+                    base = singan.sample(n_sample=7)
                     base = F.interpolate(base,imgsize)
-                sample = netG(z,base)
-                rec = netG(fixed_z,prev_rec)
+                    sample = netG(z,base)
+                    rec = netG(fixed_z,prev_rec)
+                # z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
+                # base = singan.sample(n_sample=7)
+                # if type(base) == torch.Tensor:
+                #     base = F.interpolate(base,imgsize)
+                # sample = netG(z,base)
+                # rec = netG(fixed_z,prev_rec)
 
                 sample = torch.cat([sample,rec],0)
 
