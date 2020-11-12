@@ -92,7 +92,7 @@ def train_singan_onescale(img, \
     #     # batch = img
     #     batch_zeros = zeros
 
-    if singan.n_scale == 0:
+    if  singan.n_scale == 0:
         z_std = z_std_scale
         fixed_z = z_std * torch.randn_like(img)
     else:
@@ -142,7 +142,7 @@ def train_singan_onescale(img, \
             # generate image
             z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
             if singan.n_scale == 0:
-                Gout = netG(z,singan.init)
+                Gout = netG(z,0.)
             else:
                 base = singan.sample(n_sample=batch_size)
                 base = F.interpolate(base,imgsize)
@@ -198,7 +198,7 @@ def train_singan_onescale(img, \
 
             # generate image
             if singan.n_scale == 0:
-                Gout = netG(z,singan.init)
+                Gout = netG(z,0.)
             else:
                 base = singan.sample(n_sample=batch_size)
                 base = F.interpolate(base,imgsize)
@@ -218,7 +218,7 @@ def train_singan_onescale(img, \
                 adv_loss = - Dout_fake.mean()
                 adv_loss.backward()
             if singan.n_scale == 0:
-                rec = netG(fixed_z,singan.init)
+                rec = netG(fixed_z,0.)
             else:
                 rec = netG(fixed_z,prev_rec)
             rec_loss = ReconstructionLoss(rec,img) * recloss_scale
@@ -258,11 +258,11 @@ def train_singan_onescale(img, \
                 # display sample from generator
                 if singan.n_scale == 0:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                    if type(singan.init) is not torch.Tensor:
-                        sample = netG(z,singan.init)
-                    else:
-                        sample = netG(z,singan.init.expand(z.size()))
-                    rec = netG(fixed_z,singan.init)
+                    # if type(singan.init) is not torch.Tensor:
+                    sample = netG(z,0.)
+                    # else:
+                    #     sample = netG(z,singan.init.expand(z.size()))
+                    rec = netG(fixed_z,0.)
                 else:
                     z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
                     base = singan.sample(n_sample=7)

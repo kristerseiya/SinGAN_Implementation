@@ -180,7 +180,7 @@ class SinGAN():
     #   if G, z_amp, Z are given and this isn't,
     #   it will automatically reconstruct the image for you
     #
-    def __init__(self, scale, init=None, G=None, z_amp=None, Z=None, recimg=None, device=None):
+    def __init__(self, scale, G=None, z_amp=None, Z=None, recimg=None, device=None):
 
         if G is None:
             G = []
@@ -198,13 +198,13 @@ class SinGAN():
 
         self.n_scale = len(G)
 
-        if init is not None:
-            if device is not None:
-                self.init = init.to(device)
-            else:
-                self.init = init
-        else:
-            self.init = 0.
+        # if init is not None:
+        #     if device is not None:
+        #         self.init = init.to(device)
+        #     else:
+        #         self.init = init
+        # else:
+        #     self.init = 0.
 
         if device is not None:
             for i in range(self.n_scale):
@@ -223,7 +223,7 @@ class SinGAN():
             for i in range(len(recimg),self.n_scale):
                 if i == 0:
                     # zeros = torch.randn_like(Z[0])
-                    new_recimg = self.G[0](Z[0],init)
+                    new_recimg = self.G[0](Z[0],0.)
                 else:
                     prev = utils.upsample(self.recimg[-1],1./self.scale)
                     # prev = F.interpolate(self.recimg[-1],scale_factor=1./self.scale)
@@ -255,7 +255,7 @@ class SinGAN():
                 new_recimg = netG(fixed_z,prev)
             else:
                 # zeros = torch.zeros_like(fixed_z)
-                new_recimg = netG(fixed_z,self.init)
+                new_recimg = netG(fixed_z,0.)
 
         self.recimg.append(new_recimg.detach())
         self.imgsize.append((new_recimg.size(-2),new_recimg.size(-1)))
@@ -273,7 +273,7 @@ class SinGAN():
     @torch.no_grad()
     def reconstruct(self,scale_level=None):
         if self.G == []:
-            return self.init
+            return None
         if scale_level is None:
             return self.recimg[-1]
         else:
@@ -289,7 +289,7 @@ class SinGAN():
     @torch.no_grad()
     def sample(self,input_size=None, n_sample=1,scale_level=None):
         if self.G == []:
-            return self.init
+            return None
         if scale_level is None:
             scale_level = self.n_scale
 
@@ -304,7 +304,7 @@ class SinGAN():
         else:
             z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),device=self.device)
             # z = self.z_amp[0] * torch.randn_like(zeros)
-        sample = self.G[0](z,self.init)
+        sample = self.G[0](z,0.)
         for i in range(1,scale_level):
             sample = utils.upsample(sample, 1./self.scale)
             # sample = F.interpolate(sample,scale_factor=1./self.scale)
@@ -354,7 +354,7 @@ class SinGAN():
 def save_singan(singan,path):
     torch.save({'n_scale': singan.n_scale, \
                 'scale': singan.scale, \
-                'init': singan.init, \
+                # 'init': singan.init, \
                 'trained_size': singan.imgsize, \
                 'models': singan.G, \
                 'noise_amp': singan.z_amp, \
@@ -365,7 +365,7 @@ def save_singan(singan,path):
 
 def load_singan(path):
     load = torch.load(path)
-    singan = SinGAN(load['scale'], load['init'], load['models'], load['noise_amp'], \
+    singan = SinGAN(load['scale'], load['models'], load['noise_amp'], \
                     load['fixed_noise'],load['reconstructed_images'])
     return singan
 
