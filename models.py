@@ -182,7 +182,7 @@ class SinGAN():
     #
     def __init__(self, scale, imgsize=None, G=None, z_amp=None, Z=None, recimg=None, device=None):
 
-        if imgsize=None:
+        if imgsize is None:
             imgsize = []
         if G is None:
             G = []
@@ -221,7 +221,7 @@ class SinGAN():
                     prev = utils.upsample(self.recimg[-1],1./self.scale)
                     new_recimg = self.G[i](Z[i],prev)
                 self.recimg.append(new_recimg.detach())
-                
+
         if len(self.imgsize) < len(self.recimg):
             self.imgsize = [(x.size(-2),x.size(-1)) for x in self.recimg]
 
