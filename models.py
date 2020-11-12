@@ -297,9 +297,9 @@ class SinGAN():
         # if n_sample != 1:
         #     zeros = torch.cat(n_sample*[zeros])
         if input_size is not None:
-            z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),input_size[0],input_size[1],devcie=self.device)
+            z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),input_size[0],input_size[1],device=self.device)
         else:
-            z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),devcie=self.device)
+            z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),device=self.device)
             # z = self.z_amp[0] * torch.randn_like(zeros)
         sample = self.G[0](z,self.init)
         for i in range(1,scale_level):
