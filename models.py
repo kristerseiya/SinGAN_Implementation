@@ -301,7 +301,7 @@ class SinGAN():
         else:
             z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),devcie=self.device)
             # z = self.z_amp[0] * torch.randn_like(zeros)
-        sample = self.G[0](z,init)
+        sample = self.G[0](z,self.init)
         for i in range(1,scale_level):
             sample = utils.upsample(sample, 1./self.scale)
             # sample = F.interpolate(sample,scale_factor=1./self.scale)
