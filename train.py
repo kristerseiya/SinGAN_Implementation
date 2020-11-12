@@ -280,7 +280,6 @@ def train_singan_onescale(img, \
 
             plt.figure(figsize=figsize)
             utils.show_tensor_image(sample,4)
-            plt.show()
             netG.train()
 
     return z_std, fixed_z, meta_data #(netG_losses, netD_losses, wasserstein_distances, rec_losses)

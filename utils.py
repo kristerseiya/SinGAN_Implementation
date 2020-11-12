@@ -95,14 +95,24 @@ def convert_images2tensors(imgs,transform=None, device=None):
     return transformed_imgs
 
 # plot tensors as images
-def show_tensor_image(tensor,row_n=1):
+def show_tensor_image(tensor,row_n=1,use_matplot=True):
     tensor = tensor.detach().cpu()
     tensor = torchvision.utils.make_grid(tensor,row_n)
     img = tensor.numpy()
     img = img.transpose([1,2,0])
     img = (img + 1) / 2
     img = np.clip(img,0.,1.)
-    plt.imshow(img)
+    if use_matplot is True:
+        plt.imshow(img)
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
+        plt.show()
+    else:
+        img = img * 255
+        img = img.astype(np.uint8)
+        x = Image.fromarray(img)
+        x.show()
+
+
 
 # parameter initialization
 def xavier_uniform_weight_init(layer):
@@ -143,10 +153,10 @@ def upsample(tensor, r):
     tensor = F.interpolate(tensor,(nh,nw))
     return tensor
 
-def save_tensor_image(tensor,path):
+def save_tensor_image(tensor,path, row_n=2):
     tensor = tensor.detach().cpu()
+    tensor = torchvision.utils.make_grid(tensor,row_n)
     arr = tensor.numpy()
-    arr = arr.squeeze(0)
     arr = arr.transpose([1,2,0])
     arr = (arr + 1) / 2
     arr = np.clip(arr,0.,1.)

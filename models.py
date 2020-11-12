@@ -271,13 +271,13 @@ class SinGAN():
     #   if not given, it will output the reconstruction at the final scale
     #
     @torch.no_grad()
-    def reconstruct(self,scale_level=None):
+    def reconstruct(self,output_level=None):
         if self.G == []:
             return None
-        if scale_level is None:
+        if output_level is None:
             return self.recimg[-1]
         else:
-            return self.recimg[scale_level-1]
+            return self.recimg[output_level]
 
     # sample(self,n_sample=1,scale_level=None)
     #   generates random samples
@@ -287,11 +287,11 @@ class SinGAN():
     #   the scale level of samples
     #
     @torch.no_grad()
-    def sample(self,input_size=None, n_sample=1,scale_level=None):
+    def sample(self,input_size=None, n_sample=1, output_level=None):
         if self.G == []:
             return None
-        if scale_level is None:
-            scale_level = self.n_scale
+        if output_level is None:
+            output_level = self.n_scale - 1
 
         # if input_size is not None:
         #     zeros = torch.zeros(1,self.Z[0].size(1),input_size[0],input_size[1],device=self.Z[0].device)
@@ -305,7 +305,7 @@ class SinGAN():
             z = self.z_amp[0] * torch.randn(n_sample,self.Z[0].size(1),self.Z[0].size(2),self.Z[0].size(3),device=self.device)
             # z = self.z_amp[0] * torch.randn_like(zeros)
         sample = self.G[0](z,0.)
-        for i in range(1,scale_level):
+        for i in range(1,output_level+1):
             sample = utils.upsample(sample, 1./self.scale)
             # sample = F.interpolate(sample,scale_factor=1./self.scale)
             z = self.z_amp[i] * torch.randn_like(sample)
@@ -321,20 +321,26 @@ class SinGAN():
     #   the scale level of the output image
     #
     @torch.no_grad()
-    def inject(self,x,n_sample=1,insert_level=None,scale_level=None):
+    def inject(self,x,n_sample=1,inject_level=None,output_level=None):
         if self.G == []:
             return None
-        if insert_level is None:
-            insert_level = self.n_scale
-        if scale_level is None:
-            scale_level = self.n_scale
+        if inject_level is None:
+            inject_level = self.n_scale - 1
+        if output_level is None:
+            output_level = self.n_scale - 1
         if n_sample != 1:
             x = torch.cat(n_sample*[x],0)
+        if inject_level < 0:
+            inject_level = self.n_scale + inject_level
+        if output_level < 0:
+            output_level = self.n_scale + output_level
 
-        for _ in range(scale_level-insert_level+1):
-            x = utils.downsample(x, self.scale)
+        # for _ in range(scale_level-insert_level+1):
+        #     x = utils.downsample(x, self.scale)
             # x = F.interpolate(x,(ceil(x.size(-2)/self.scale),ceil(x.size(-1)/self.scale)))
-        for i in range(insert_level-1,scale_level):
+        z = self.z_amp[inject_level] * torch.randn_like(x)
+        x = self.G[inject_level](z,x)
+        for i in range(inject_level+1,output_level+1):
             x = utils.upsample(x, 1./self.scale)
             # x = F.interpolate(x,scale_factor=1./self.scale)
             z = self.z_amp[i] * torch.randn_like(x)
