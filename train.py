@@ -68,7 +68,7 @@ def GradientPenaltyLoss(netD,real,fake):
 #   frequency of plotting random samples
 # 21. figsize
 #   size of the plot for generated samples
-#
+
 def train_singan_onescale(img, \
                           netG,netG_optim, \
                           netD,netD_optim, \

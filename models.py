@@ -333,20 +333,6 @@ class SinGAN():
                 self.Z[i] = self.Z[i].to(device)
         return self
 
-    # @torch.no_grad()
-    # def forward_(self, input1, input2=0., input_level=0, output_level=-1):
-    #     if input_level < 0:
-    #         input_level = self.n_scale + input_level
-    #     if output_level < 0:
-    #         output_level = self.n_scale + output_level
-    #
-    #     x = self.G[input_level](input1,input2)
-    #     for i in range(input_level+1,output_level+1):
-    #         sample = utils.upsample(sample, 1./self.scale)
-    #         z = self.z_amp[i] * torch.randn_like(sample)
-    #     sample = self.G[i](z,sample)
-
-
     def walk(self,n,alpha,beta):
         z_t1 = 0.
         z_t = self.Z[0]
@@ -366,7 +352,6 @@ class SinGAN():
                 x = self.G[j](0.,x)
             xs = torch.cat([xs,x],0)
         return xs
-
 
 
 # loading and saving SinGAN
