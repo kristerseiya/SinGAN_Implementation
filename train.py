@@ -216,12 +216,12 @@ def train_singan_onescale(img, \
             with torch.no_grad():
                 # display sample from generator
                 if singan.n_scale == 0:
-                    z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
+                    z = z_std * torch.randn(n_sample,img.size(1),img.size(2),img.size(3),device=img.device)
                     sample = netG(z,0.)
                     rec = netG(fixed_z,0.)
                 else:
-                    z = z_std * torch.randn(7,img.size(1),img.size(2),img.size(3),device=img.device)
-                    base = singan.sample(n_sample=7)
+                    z = z_std * torch.randn(n_sample,img.size(1),img.size(2),img.size(3),device=img.device)
+                    base = singan.sample(n_sample=n_sample)
                     base = F.interpolate(base,imgsize)
                     sample = netG(z,base)
                     rec = netG(fixed_z,prev_rec)
