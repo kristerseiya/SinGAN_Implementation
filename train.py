@@ -113,7 +113,7 @@ def train_singan_onescale(img, \
         for i in range(netD_iter):
 
             # generate image
-            z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
+            z = z_std * torch.randn(batch_size*img.size(0),img.size(1),img.size(2),img.size(3),device=img.device)
             if singan.n_scale == 0:
                 Gout = netG(z,0.)
             else:
