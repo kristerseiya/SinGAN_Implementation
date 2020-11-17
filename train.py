@@ -7,7 +7,11 @@ import numpy as np
 
 # calculates gradient penalty loss for WGAN-GP critic
 def GradientPenaltyLoss(netD,real,fake):
-    real = real.expand(fake.size())
+	if fake.size(0) > real.size(0) and real.size(0) == 1:
+		real = real.expand(fake.size())
+	if real.size(0) > fake.size(0):
+		fake = fake.expand(real.size())
+    # real = real.expand(fake.size())
     alpha = torch.rand(fake.size(0),1,1,1,device=fake.device)
     alpha = alpha.expand(fake.size())
     interpolates = alpha * real + (1-alpha) * fake
@@ -113,7 +117,7 @@ def train_singan_onescale(img, \
         for i in range(netD_iter):
 
             # generate image
-            z = z_std * torch.randn(batch_size*img.size(0),img.size(1),img.size(2),img.size(3),device=img.device)
+            z = z_std * torch.randn(batch_size,img.size(1),img.size(2),img.size(3),device=img.device)
             if singan.n_scale == 0:
                 Gout = netG(z,0.)
             else:
