@@ -83,7 +83,7 @@ def train_singan_onescale(img, \
                           recloss_fun=None,recloss_scale=10,gp_scale=0.1,clip_range=0.01, \
                           z_std_scale=0.1, \
                           netG_iter=3,netD_iter=3, \
-                          log_freq=0, plot_freq=0, figsize=(15,15)):
+                          log_freq=0, plot_freq=0, n_sample=7, figsize=(15,15)):
 
     imgsize = (img.size(-2),img.size(-1))
 
