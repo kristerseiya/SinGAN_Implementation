@@ -12,7 +12,7 @@ import imageio
 
 # loades image given a path to image
 def load_image(path):
-    img = Image.open(path)
+    img = Image.open(path).convert('RGB')
     return img
 
 # creates a list of images with different scales
