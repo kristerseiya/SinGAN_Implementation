@@ -1,12 +1,7 @@
 import torch
-from . import models, utils, train
+# from SinGAN_Implementation import models, utils, train
+from SINGAN import models, utils, train
 import argparse
-
-img = loadImage("SinGAN_Implementation/3-nature-wallpaper-mountain.jpg")
-print(img.size)
-plt.imshow(img)
-plt.show()
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--image', required=True, help="input image")
